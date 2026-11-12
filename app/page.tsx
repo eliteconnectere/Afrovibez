@@ -35,6 +35,7 @@ const sectionsConfig = [
 export default function HomePage() {
   const [view, setView] = useState<View>("discover");
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [studioTracks, setStudioTracks] = useState<Track[]>([]);
   const [sectionTracks, setSectionTracks] = useState<Record<string, Track[]>>({});
   const [charts, setCharts] = useState<Track[]>([]);
   const [query, setQuery] = useState("afrobeats");
@@ -168,9 +169,9 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    catalogueRef.current = [...tracks, ...charts, ...Object.values(sectionTracks).flat()]
+    catalogueRef.current = [...studioTracks, ...tracks, ...charts, ...Object.values(sectionTracks).flat()]
       .filter((track, index, all) => all.findIndex(item => item.trackId === track.trackId) === index);
-  }, [tracks, charts, sectionTracks]);
+  }, [tracks, studioTracks, charts, sectionTracks]);
 
   useEffect(() => {
     const stay = localStorage.getItem("afrovibez.keepAudioMode") === "true";
@@ -180,6 +181,36 @@ export default function HomePage() {
   useEffect(() => {
     loadTracks(query);
   }, [query, loadTracks]);
+
+  useEffect(() => {
+    const loadStudioCatalogue = async () => {
+      const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!base || !key) return;
+      try {
+        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,studio_artists(stage_name)&status=eq.approved&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+        if (!response.ok) throw new Error("Published AfroVibe releases are temporarily unavailable.");
+        const rows = await response.json();
+        const signed = await Promise.all((rows || []).map(async (row: any) => {
+          const sign = async (bucket: string, path: string) => {
+            const encoded = path.split("/").map(encodeURIComponent).join("/");
+            const result = await fetch(`${base}/storage/v1/object/sign/${bucket}/${encoded}`, { method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ expiresIn: 3600 }) });
+            if (!result.ok) return "";
+            const data = await result.json();
+            return data.signedURL?.startsWith("http") ? data.signedURL : `${base}/storage/v1${data.signedURL || ""}`;
+          };
+          const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
+          if (!audio || !artwork) return null;
+          const numericId = row.id.replace(/-/g, "").slice(0, 12);
+          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: row.studio_artists?.stage_name || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, previewUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+        }));
+        setStudioTracks(signed.filter(Boolean) as Track[]);
+      } catch (e) {
+        console.error("AfroVibe Studio catalogue:", e);
+      }
+    };
+    void loadStudioCatalogue();
+  }, []);
 
   useEffect(() => {
     loadSections();
@@ -336,7 +367,7 @@ export default function HomePage() {
 
   const isExplicit = (track: Track) => track.trackExplicitness?.toLowerCase() === "explicit" || track.contentAdvisoryRating?.toLowerCase() === "explicit";
   const artworkUrl = (track: Track, high: string, low: string) => track.artworkUrl100?.replace("100x100", highQualityArtwork ? high : low);
-  const visibleTracks = tracks.filter(
+  const visibleTracks = [...studioTracks, ...tracks].filter(
     (t) => (showExplicitContent || !isExplicit(t)) && (
       category === "All" ||
       (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) ||
