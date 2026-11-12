@@ -135,7 +135,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!storageReady) return;
     try {
-      localStorage.setItem("afrovibez.likes.v1", JSON.stringify([...liked]));
+      localStorage.setItem("afrovibez.likes.v1", JSON.stringify(Array.from(liked)));
       localStorage.setItem("afrovibez.queue.v1", JSON.stringify(queue));
       localStorage.setItem("afrovibez.playlists.v1", JSON.stringify(playlists));
       localStorage.setItem("afrovibez.follows.v1", JSON.stringify(followedArtists));
