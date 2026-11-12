@@ -130,3 +130,23 @@ html[data-theme="dark"] .settings-footnote{background:#222a3b;color:#b6bdcd}
   .chart-row{padding:9px 10px;gap:10px}
   .rank{width:22px;font-size:13px}
 }
+
+
+/* AfroVibez track actions and queue */
+.track-menu-backdrop{position:fixed;inset:0;z-index:130;background:#000b;display:flex;align-items:flex-end;justify-content:center}
+.track-menu-sheet{position:relative;width:min(100%,620px);max-height:92dvh;overflow:auto;background:#101010;color:#fff;border-radius:22px 22px 0 0;padding:24px 22px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -12px 50px #0008}
+.sheet-grip{width:54px;height:5px;border-radius:8px;background:#555;margin:0 auto 24px}
+.sheet-close{position:absolute;right:18px;top:16px;border:0;background:transparent;color:#fff;padding:8px}
+.sheet-track{display:flex;align-items:center;gap:13px;padding:8px 42px 20px 0;border-bottom:1px solid #333}
+.sheet-track img{width:62px;height:62px;object-fit:cover;border-radius:8px}
+.sheet-track div{display:flex;flex-direction:column;gap:4px}.sheet-track span{color:#bbb;font-size:14px}.sheet-track strong{font-size:17px}
+.share-shortcuts{display:flex;justify-content:space-between;gap:8px;padding:22px 0;overflow-x:auto;border-bottom:1px solid #333}
+.share-shortcuts button{flex:1;min-width:58px;display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:0;color:#fff;font-size:24px}
+.share-shortcuts button span{font-size:11px;color:#ccc;white-space:nowrap}
+.track-menu-actions{display:flex;flex-direction:column}
+.track-menu-actions button{display:flex;align-items:center;gap:17px;min-height:66px;background:none;border:0;border-bottom:1px solid #333;color:#fff;text-align:left;font-size:16px;font-weight:650}
+.track-menu-actions svg{width:22px;height:22px;color:#ffa400;flex:0 0 22px}
+.local-only-note{font-size:11px;line-height:1.6;color:#999;margin:17px 0 0}
+.af-toast{position:fixed;z-index:160;bottom:100px;left:50%;transform:translateX(-50%);background:#242424;color:#fff;padding:12px 18px;border-radius:30px;font-size:13px;box-shadow:0 5px 25px #0005;max-width:90%;text-align:center}
+@media(min-width:760px){.track-menu-backdrop{align-items:center;padding:20px}.track-menu-sheet{border-radius:20px;max-height:85vh}}
+@media(max-width:600px){.track-menu-sheet{padding-left:18px;padding-right:18px}.track-menu-actions button{min-height:60px}}
