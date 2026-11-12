@@ -17,6 +17,8 @@ type Track = {
   previewUrl?: string;
   trackViewUrl: string;
   primaryGenreName?: string;
+  trackExplicitness?: string;
+  contentAdvisoryRating?: string;
 };
 
 type View = "discover" | "charts" | "library" | "queue";
@@ -61,7 +63,11 @@ export default function HomePage() {
   const [followedArtists, setFollowedArtists] = useState<string[]>([]);
   const [toast, setToast] = useState("");
   const [storageReady, setStorageReady] = useState(false);
+  const [highQualityArtwork, setHighQualityArtwork] = useState(true);
+  const [showExplicitContent, setShowExplicitContent] = useState(true);
+  const catalogueRef = useRef<Track[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const currentTrackIdRef = useRef<number | null>(null);
 
   const fetchTracks = useCallback(async (term: string, limit = 24) => {
     const response = await fetch(
@@ -135,6 +141,9 @@ export default function HomePage() {
       setQueue(JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]"));
       setPlaylists(JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]"));
       setFollowedArtists(JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]"));
+      const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
+      setHighQualityArtwork(preferences.highQuality !== false);
+      setShowExplicitContent(preferences.explicitContent !== false);
     } catch { /* Ignore malformed local preferences. */ }
     finally { setStorageReady(true); }
   }, []);
@@ -159,6 +168,11 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    catalogueRef.current = [...tracks, ...charts, ...Object.values(sectionTracks).flat()]
+      .filter((track, index, all) => all.findIndex(item => item.trackId === track.trackId) === index);
+  }, [tracks, charts, sectionTracks]);
+
+  useEffect(() => {
     const stay = localStorage.getItem("afrovibez.keepAudioMode") === "true";
     setKeepAudioMode(stay);
   }, []);
@@ -178,7 +192,10 @@ export default function HomePage() {
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
-    audio.volume = 0.85;
+    try {
+      const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
+      audio.volume = Math.max(0, Math.min(100, Number(preferences.volume ?? 85))) / 100;
+    } catch { audio.volume = 0.85; }
     audio.addEventListener("ended", () => {
       if (repeatRef.current) {
         audio.currentTime = 0;
@@ -186,6 +203,12 @@ export default function HomePage() {
         return;
       }
       try {
+        const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
+        if (preferences.autoplay !== true) {
+          setPlaying(false);
+          setCurrentTime(0);
+          return;
+        }
         const savedQueue = JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[];
         const nextQueue = savedQueue.filter(t => t.previewUrl);
         if (nextQueue.length) {
@@ -200,6 +223,14 @@ export default function HomePage() {
           return;
         }
       } catch { /* Ignore invalid saved queue data. */ }
+      const available = catalogueRef.current.filter(track => track.previewUrl && track.trackId !== currentTrackIdRef.current);
+      if (available.length) {
+        const next = shuffleRef.current ? available[Math.floor(Math.random() * available.length)] : available[0];
+        setCurrent(next);
+        audio.src = next.previewUrl!;
+        void audio.play().catch(() => { setPlaying(false); setToast("The next preview could not be played."); });
+        return;
+      }
       setPlaying(false);
       setCurrentTime(0);
     });
@@ -231,14 +262,16 @@ export default function HomePage() {
     }
     audio.pause();
     audio.src = track.previewUrl;
-    audio.playbackRate = audioMode === "sped" ? 1.25 : audioMode === "slowed" ? 0.8 : audioMode === "nightcore" ? 1.35 : audioMode === "daycore" ? 0.85 : 1;
+    let savedPreferences: Record<string, unknown> = {};
+    try { savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}"); } catch {}
+    audio.volume = Math.max(0, Math.min(100, Number(savedPreferences.volume ?? 85))) / 100;
+    const selectedMode = keepAudioMode ? audioMode : ((savedPreferences.defaultMode as typeof audioMode) || "normal");
+    setAudioMode(selectedMode);
+    audio.playbackRate = selectedMode === "sped" ? 1.25 : selectedMode === "slowed" ? 0.8 : selectedMode === "nightcore" ? 1.35 : selectedMode === "daycore" ? 0.85 : 1;
+    currentTrackIdRef.current = track.trackId;
     setCurrent(track);
     setCurrentTime(0);
     setDuration(30);
-    if (!keepAudioMode) {
-      setAudioMode("normal");
-      audio.playbackRate = 1;
-    }
     try {
       await audio.play();
     } catch {
@@ -299,11 +332,14 @@ export default function HomePage() {
     }
   };
 
+  const isExplicit = (track: Track) => track.trackExplicitness?.toLowerCase() === "explicit" || track.contentAdvisoryRating?.toLowerCase() === "explicit";
+  const artworkUrl = (track: Track, high: string, low: string) => track.artworkUrl100?.replace("100x100", highQualityArtwork ? high : low);
   const visibleTracks = tracks.filter(
-    (t) =>
+    (t) => (showExplicitContent || !isExplicit(t)) && (
       category === "All" ||
       (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) ||
       t.artistName.toLowerCase().includes(category.toLowerCase())
+    )
   );
 
   const submitSearch = (e: React.FormEvent) => {
@@ -353,7 +389,7 @@ export default function HomePage() {
     <article className="track-card">
       <div className="cover-wrap">
         <img
-          src={track.artworkUrl100?.replace("100x100", "400x400")}
+          src={artworkUrl(track, "400x400", "100x100")}
           alt=""
           loading={index > 6 ? "lazy" : "eager"}
         />
@@ -404,7 +440,7 @@ export default function HomePage() {
           {list.map((track, i) => (
             <article className="row-card" key={track.trackId}>
               <div className="row-cover">
-                <img src={track.artworkUrl100?.replace("100x100", "300x300")} alt="" loading="lazy" />
+                <img src={artworkUrl(track, "300x300", "100x100")} alt="" loading="lazy" />
                 <button
                   className="row-play"
                   onClick={() => playTrack(track)}
@@ -590,7 +626,7 @@ export default function HomePage() {
                     <article className="chart-row" key={track.trackId}>
                       <span className="rank">{i + 1}</span>
                       <div className="chart-cover">
-                        <img src={track.artworkUrl100?.replace("100x100", "200x200")} alt="" />
+                        <img src={artworkUrl(track, "200x200", "100x100")} alt="" />
                         <button
                           className="chart-play"
                           onClick={() => playTrack(track)}
