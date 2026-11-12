@@ -14,7 +14,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [current, setCurrent] = useState<Track | null>(null);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(false);\n  const [playerOpen, setPlayerOpen] = useState(false);\n  const [currentTime, setCurrentTime] = useState(0);\n  const [duration, setDuration] = useState(30);
   const [mobileNav, setMobileNav] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -35,7 +35,7 @@ export default function HomePage() {
     const audio = new Audio(); audioRef.current = audio;
     audio.addEventListener("ended", () => setPlaying(false));
     audio.addEventListener("pause", () => setPlaying(false));
-    audio.addEventListener("play", () => setPlaying(true));
+    audio.addEventListener("play", () => setPlaying(true));\n    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));\n    audio.addEventListener("loadedmetadata", () => setDuration(Number.isFinite(audio.duration) ? audio.duration : 30));\n    audio.addEventListener("ended", () => setCurrentTime(0));
     return () => { audio.pause(); audio.src = ""; };
   }, []);
 
@@ -44,12 +44,12 @@ export default function HomePage() {
     const audio = audioRef.current; if (!audio) return;
     if (current?.trackId === track.trackId && !audio.paused) { audio.pause(); return; }
     if (current?.trackId === track.trackId && audio.paused) { await audio.play(); return; }
-    audio.pause(); audio.src = track.previewUrl; setCurrent(track);
+    audio.pause(); audio.src = track.previewUrl; setCurrent(track); setCurrentTime(0); setDuration(30);
     try { await audio.play(); } catch { setError("This preview could not be played. Try another track."); }
   };
   const visibleTracks = tracks.filter(t => category === "All" || (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) || t.artistName.toLowerCase().includes(category.toLowerCase()));
   const submitSearch = (e: React.FormEvent) => { e.preventDefault(); if (input.trim()) { setQuery(input.trim()); setCategory("All"); } };
-  const featured = tracks.slice(0, 4);
+  const featured = tracks.slice(0, 4);\n  const playAdjacent = (direction: -1 | 1) => {\n    if (!current) return;\n    const playable = tracks.filter(t => !!t.previewUrl);\n    if (!playable.length) return;\n    const index = playable.findIndex(t => t.trackId === current.trackId);\n    const next = playable[(index + direction + playable.length) % playable.length];\n    void playTrack(next);\n  };\n  const seek = (value: number) => { if (audioRef.current) { audioRef.current.currentTime = value; setCurrentTime(value); } };\n  const timeLabel = (value: number) => { const safe = Number.isFinite(value) ? Math.max(0, value) : 0; return Math.floor(safe / 60) + ":" + String(Math.floor(safe % 60)).padStart(2, "0"); };
 
   return <main className="app-shell">
     <aside className={"sidebar " + (mobileNav ? "sidebar-open" : "")}>
@@ -84,6 +84,22 @@ export default function HomePage() {
         <footer>© {new Date().getFullYear()} AFROVIBEZ <span>Discover. Listen. Feel.</span></footer>
       </div>
     </section>
-    {current && <div className="player"><img src={current.artworkUrl100} alt=""/><div className="player-track"><strong>{current.trackName}</strong><span>{current.artistName} · 30-second preview</span></div><div className="player-controls"><button onClick={() => playTrack(current)} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause fill="currentColor"/> : <Play fill="currentColor"/>}</button></div><div className="player-progress"><span className={playing ? "progress-active" : ""}/></div><button className="player-close" onClick={() => { audioRef.current?.pause(); setCurrent(null); }} aria-label="Close player"><X size={18}/></button></div>}
+    {current && <div className="player" role="region" aria-label="Music player">
+      <button className="player-open" onClick={() => setPlayerOpen(true)} aria-label="Open full player"><img src={current.artworkUrl100} alt=""/><span className="player-track"><strong>{current.trackName}</strong><span>{current.artistName} · Preview</span></span></button>
+      <div className="player-controls"><button onClick={() => playTrack(current)} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause fill="currentColor"/> : <Play fill="currentColor"/>}</button></div>
+      <div className="player-progress"><span style={{width: (duration ? Math.min(100, currentTime / duration * 100) : 0) + "%"}}/></div>
+      <button className="player-expand" onClick={() => setPlayerOpen(true)} aria-label="Expand player">⌃</button>
+      <button className="player-close" onClick={() => { audioRef.current?.pause(); setCurrent(null); setPlayerOpen(false); }} aria-label="Close player"><X size={18}/></button>
+    </div>}
+    {current && playerOpen && <div className="full-player-backdrop" role="dialog" aria-modal="true" aria-label="Now playing" onClick={() => setPlayerOpen(false)}>
+      <section className="full-player" onClick={e => e.stopPropagation()}>
+        <header className="full-player-header"><button onClick={() => setPlayerOpen(false)} aria-label="Minimize player"><X/></button><div><small>NOW PLAYING</small><strong>AFROVIBEZ PLAYER</strong></div><span className="full-player-live">PREVIEW</span></header>
+        <div className="full-player-art-wrap"><img className="full-player-art" src={current.artworkUrl100?.replace("100x100","600x600")} alt={"Album artwork for " + current.trackName}/></div>
+        <div className="full-player-meta"><div><h2>{current.trackName}</h2><p>{current.artistName}</p><span>{current.collectionName || "Single"} · {current.primaryGenreName || "Music"}</span></div><Disc3 size={24}/></div>
+        <div className="full-player-timeline"><input aria-label="Seek within preview" type="range" min="0" max={duration || 30} step="0.1" value={Math.min(currentTime, duration || 30)} onChange={e => seek(Number(e.target.value))}/><div><span>{timeLabel(currentTime)}</span><span>-{timeLabel(Math.max(0,(duration || 30)-currentTime))}</span></div></div>
+        <div className="full-player-controls"><button onClick={() => playAdjacent(-1)} aria-label="Previous track"><SkipBack size={25} fill="currentColor"/></button><button className="full-play-button" onClick={() => playTrack(current)} aria-label={playing ? "Pause music" : "Play music"}>{playing ? <Pause size={30} fill="currentColor"/> : <Play size={30} fill="currentColor"/>}</button><button onClick={() => playAdjacent(1)} aria-label="Next track"><SkipForward size={25} fill="currentColor"/></button></div>
+        <div className="full-player-caption">You are listening to a short catalogue preview. Full-track playback is not connected yet.</div>
+      </section>
+    </div>}
   </main>;
 }
