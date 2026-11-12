@@ -50,6 +50,8 @@ export default function HomePage() {
   const [volume, setVolume] = useState(0.85);
   const [shuffleEnabled, setShuffleEnabled] = useState(false);
   const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [audioMode, setAudioMode] = useState<"normal"|"sped"|"slowed"|"nightcore"|"daycore">("normal");
+  const [keepAudioMode, setKeepAudioMode] = useState(false);
   const shuffleRef = useRef(false);
   const repeatRef = useRef(false);
   const [liked, setLiked] = useState<Set<number>>(new Set());
@@ -170,21 +172,26 @@ export default function HomePage() {
         void audio.play().catch(() => setToast("This preview could not be replayed."));
         return;
       }
-      setPlaying(false);
-      setCurrentTime(0);
       try {
-        const prefs = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
-        const nextQueue = JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[];
-        if (prefs.autoplay && nextQueue.length && nextQueue[0].previewUrl) {
-          const next = nextQueue[0];
-          setQueue(items => items.slice(1));
+        const savedQueue = JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[];
+        const nextQueue = savedQueue.filter(t => t.previewUrl);
+        if (nextQueue.length) {
+          const nextIndex = shuffleRef.current ? Math.floor(Math.random() * nextQueue.length) : 0;
+          const next = nextQueue[nextIndex];
+          const remaining = nextQueue.filter((_, index) => index !== nextIndex);
+          setQueue(remaining);
+          localStorage.setItem("afrovibez.queue.v1", JSON.stringify(remaining));
           setCurrent(next);
           audio.src = next.previewUrl!;
-          void audio.play().catch(() => setToast("The next preview could not be played."));
+          void audio.play().catch(() => { setPlaying(false); setToast("The next preview could not be played."); });
+          return;
         }
-      } catch { /* Keep playback stable if saved preferences are invalid. */ }
+      } catch { /* Ignore invalid saved queue data. */ }
+      setPlaying(false);
+      setCurrentTime(0);
     });
     audio.addEventListener("pause", () => setPlaying(false));
+    audio.addEventListener("error", () => { setPlaying(false); setToast("This catalogue preview is unavailable."); });
     audio.addEventListener("play", () => setPlaying(true));
     audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
     audio.addEventListener("loadedmetadata", () =>
@@ -211,9 +218,14 @@ export default function HomePage() {
     }
     audio.pause();
     audio.src = track.previewUrl;
+    audio.playbackRate = audioMode === "sped" ? 1.25 : audioMode === "slowed" ? 0.8 : audioMode === "nightcore" ? 1.35 : audioMode === "daycore" ? 0.85 : 1;
     setCurrent(track);
     setCurrentTime(0);
     setDuration(30);
+    if (!keepAudioMode) {
+      setAudioMode("normal");
+      audio.playbackRate = 1;
+    }
     try {
       await audio.play();
     } catch {
@@ -302,6 +314,13 @@ export default function HomePage() {
     const index = playable.findIndex((t) => t.trackId === current.trackId);
     const nextIndex = index < 0 ? (direction > 0 ? 0 : playable.length - 1) : (index + direction + playable.length) % playable.length;
     void playTrack(playable[nextIndex]);
+  };
+
+  const applyAudioMode = (mode: typeof audioMode) => {
+    setAudioMode(mode);
+    if (audioRef.current) audioRef.current.playbackRate =
+      mode === "sped" ? 1.25 : mode === "slowed" ? 0.8 : mode === "nightcore" ? 1.35 : mode === "daycore" ? 0.85 : 1;
+    notify(mode === "normal" ? "Original speed" : `${mode === "sped" ? "Sped Up" : mode === "slowed" ? "Slowed" : mode === "nightcore" ? "Nightcore" : "Daycore"} mode enabled`);
   };
 
   const seek = (value: number) => {
@@ -678,83 +697,59 @@ export default function HomePage() {
         </div><p className="local-only-note">Your likes, follows, playlists and queue are saved on this device. Shared social feeds, comments and licensed downloads need connected services.</p>
       </section></div>}
       {current && playerOpen && (
-        <div
-          className="full-player-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Now playing"
-          onClick={() => setPlayerOpen(false)}
-        >
-          <section className="full-player" onClick={(e) => e.stopPropagation()}>
-            <header className="full-player-header">
-              <button onClick={() => setPlayerOpen(false)} aria-label="Minimize player"><X /></button>
-              <div>
-                <small>NOW PLAYING</small>
-                <strong>AFROVIBEZ PLAYER</strong>
-              </div>
-              <span className="full-player-live">PREVIEW</span>
+        <div className="full-player-backdrop" role="dialog" aria-modal="true" aria-label="Now playing">
+          <section className="full-player af-now-playing">
+            <header className="af-player-topbar">
+              <button onClick={() => setPlayerOpen(false)} aria-label="Close player"><X/></button>
+              <div><small>NOW PLAYING</small><strong>AFROVIBEZ</strong></div>
+              <button onClick={() => {setView("queue");setPlayerOpen(false);}} aria-label={`Open queue, ${queue.length} tracks`}><ListMusic/></button>
             </header>
-            <div className="full-player-art-wrap">
-              <img
-                className="full-player-art"
-                src={current.artworkUrl100?.replace("100x100", "600x600")}
-                alt={"Album artwork for " + current.trackName}
-              />
+            <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(12,20,54,.28),#0b1024 95%),url(${current.artworkUrl100?.replace("100x100","600x600")})`}}>
+              <img src={current.artworkUrl100?.replace("100x100","600x600")} alt={`Album artwork for ${current.trackName}`}/>
             </div>
-            <div className="full-player-meta">
-              <div>
-                <h2>{current.trackName}</h2>
-                <p>{current.artistName}</p>
-                <span>{current.collectionName || "Single"} · {current.primaryGenreName || "Music"}</span>
+            <div className="af-track-heading">
+              <div><span>{current.artistName}</span><h1>{current.trackName}</h1><small>{current.collectionName || "Single"} · {current.primaryGenreName || "Music"}</small></div>
+              <button className={liked.has(current.trackId)?"is-liked":""} onClick={()=>toggleLike(current.trackId)} aria-label={liked.has(current.trackId)?"Unlike track":"Like track"}><Heart fill={liked.has(current.trackId)?"currentColor":"none"}/></button>
+            </div>
+            <div className="af-primary-actions">
+              <button onClick={()=>addToPlaylist(current)}><ListPlus/><span>Playlist</span></button>
+              <button onClick={()=>void shareTrack(current)}><Share2/><span>Share</span></button>
+              <button onClick={()=>setMenuTrack(current)}><MoreVertical/><span>More</span></button>
+            </div>
+            <div className="af-wave-wrap">
+              <div className="af-wave-bars" aria-hidden="true">
+                {Array.from({length:64},(_,i)=>{
+                  const height=18+((i*37+i*i*13)%47);
+                  return <span key={i} className={i/64 <= currentTime/Math.max(duration,1)?"played":""} style={{height:height+"%"}}/>;
+                })}
               </div>
-              <Disc3 size={24} />
+              <input aria-label="Seek through preview" type="range" min="0" max={duration||30} step="0.1" value={Math.min(currentTime,duration||30)} onChange={e=>seek(Number(e.target.value))}/>
+              <div className="af-time-labels"><span>{timeLabel(currentTime)}</span><span>{timeLabel(Math.max(0,(duration||30)-currentTime))} left</span></div>
             </div>
-            <div className="full-player-timeline">
-              <input
-                aria-label="Seek within preview"
-                type="range"
-                min={0}
-                max={duration || 30}
-                step={0.1}
-                value={Math.min(currentTime, duration || 30)}
-                onChange={(e) => seek(Number(e.target.value))}
-              />
-              <div>
-                <span>{timeLabel(currentTime)}</span>
-                <span>-{timeLabel(Math.max(0, (duration || 30) - currentTime))}</span>
+            <div className="af-transport">
+              <button onClick={()=>setMenuTrack(current)} aria-label="More playback options"><MoreVertical/></button>
+              <button onClick={()=>playAdjacent(-1)} aria-label="Previous track"><SkipBack fill="currentColor"/></button>
+              <button className="af-play-toggle" onClick={()=>void playTrack(current)} aria-label={playing?"Pause":"Play"}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button>
+              <button onClick={()=>playAdjacent(1)} aria-label="Next track"><SkipForward fill="currentColor"/></button>
+              <button className={shuffleEnabled?"active":""} onClick={()=>{const v=!shuffleEnabled;shuffleRef.current=v;setShuffleEnabled(v);notify(v?"Shuffle enabled":"Shuffle disabled");}} aria-label="Toggle shuffle" aria-pressed={shuffleEnabled}><Shuffle/></button>
+            </div>
+            <div className="af-audiomod">
+              <div className="af-section-title"><strong>Audiomod</strong><label>Stay on <input type="checkbox" checked={keepAudioMode} onChange={e=>{setKeepAudioMode(e.target.checked);localStorage.setItem("afrovibez.keepAudioMode",String(e.target.checked));}}/><span/></label></div>
+              <div className="af-mode-list">
+                {([{id:"sped",label:"Sped Up"},{id:"slowed",label:"Slowed"},{id:"nightcore",label:"Nightcore"},{id:"daycore",label:"Daycore"},{id:"normal",label:"Original"}] as const).map(mode=><button key={mode.id} className={audioMode===mode.id?"selected":""} onClick={()=>applyAudioMode(mode.id)}><span>{mode.label}</span><small>{mode.id==="normal"?"1.0×":mode.id==="sped"?"1.25×":mode.id==="slowed"?"0.8×":mode.id==="nightcore"?"1.35×":"0.85×"}</small></button>)}
               </div>
             </div>
-            <div className="full-player-controls">
-              <button onClick={() => playAdjacent(-1)} aria-label="Previous track">
-                <SkipBack size={25} fill="currentColor" />
-              </button>
-              <button
-                className="full-play-button"
-                onClick={() => playTrack(current)}
-                aria-label={playing ? "Pause music" : "Play music"}
-              >
-                {playing ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" />}
-              </button>
-              <button onClick={() => playAdjacent(1)} aria-label="Next track">
-                <SkipForward size={25} fill="currentColor" />
-              </button>
+            <div className="af-repeat-row">
+              <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat preview enabled":"Repeat disabled");}} aria-pressed={repeatEnabled}><Repeat/> Repeat {repeatEnabled?"On":"Off"}</button>
+              <button onClick={()=>{setView("queue");setPlayerOpen(false);}}><ListMusic/> Queue ({queue.length})</button>
             </div>
-            <div className="full-player-tools" aria-label="Playback options">
-              <button className={"tool-btn " + (shuffleEnabled ? "is-active" : "")} onClick={() => {const next=!shuffleEnabled;shuffleRef.current=next;setShuffleEnabled(next);}} aria-pressed={shuffleEnabled}><Shuffle/><span>Shuffle</span></button>
-              <button className="tool-btn" onClick={() => addToQueue(current)}><ListPlus/><span>Queue</span></button>
-              <button className={"tool-btn " + (repeatEnabled ? "is-active" : "")} onClick={() => {const next=!repeatEnabled;repeatRef.current=next;setRepeatEnabled(next);}} aria-pressed={repeatEnabled}><Repeat/><span>Repeat</span></button>
-              <label className="volume-control"><Volume2/><input aria-label="Volume" type="range" min="0" max="1" step="0.05" value={volume} onChange={e=>{const next=Number(e.target.value);setVolume(next);if(audioRef.current)audioRef.current.volume=next;}}/></label>
-            </div>
-            <div className="player-actions">
-              <button className={"action-btn " + (liked.has(current.trackId) ? "liked" : "")} onClick={() => toggleLike(current.trackId)}><Heart size={19} fill={liked.has(current.trackId) ? "currentColor" : "none"}/><span>{liked.has(current.trackId)?"Liked":"Like"}</span></button>
-              <button className="action-btn" onClick={() => shareTrack(current)}><Share2 size={19}/><span>Share</span></button>
-              <button className="action-btn" onClick={() => addToQueue(current)}><ListPlus size={19}/><span>Queue</span></button>
-              <button className="action-btn" onClick={() => addToPlaylist(current)}><Plus size={19}/><span>Playlist</span></button>
-              <button className="action-btn" onClick={() => setMenuTrack(current)}><MoreVertical size={19}/><span>More</span></button>
-            </div>
-            <div className="full-player-caption">
-              You are listening to a short catalogue preview. Full-track playback is not connected yet.
-            </div>
+            <section className="af-artist-card">
+              <div className="af-section-title"><strong>Artist</strong><button onClick={()=>{setInput(current.artistName);setQuery(current.artistName);setView("discover");setPlayerOpen(false);}}>See catalogue <ExternalLink/></button></div>
+              <div className="af-artist-row"><div className="af-artist-avatar">{current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong><button onClick={()=>{setFollowedArtists(a=>a.includes(current.artistName)?a.filter(x=>x!==current.artistName):[...a,current.artistName]);notify(followedArtists.includes(current.artistName)?"Artist unfollowed":"Artist followed");}}>{followedArtists.includes(current.artistName)?"FOLLOWING":"FOLLOW"}</button></div>
+              <p>Catalogue listing · {current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
+              <a href={current.trackViewUrl} target="_blank" rel="noreferrer">Open official catalogue listing <ExternalLink/></a>
+            </section>
+            <div className="af-preview-note">You are listening to an Apple Music catalogue preview. Full-track playback and licensed downloads are not connected.</div>
           </section>
         </div>
       )}
