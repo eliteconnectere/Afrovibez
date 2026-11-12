@@ -157,7 +157,21 @@ export default function HomePage() {
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
-    audio.addEventListener("ended", () => setPlaying(false));
+    audio.addEventListener("ended", () => {
+      setPlaying(false);
+      setCurrentTime(0);
+      try {
+        const prefs = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
+        const nextQueue = JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[];
+        if (prefs.autoplay && nextQueue.length && nextQueue[0].previewUrl) {
+          const next = nextQueue[0];
+          setQueue(items => items.slice(1));
+          setCurrent(next);
+          audio.src = next.previewUrl!;
+          void audio.play().catch(() => setToast("The next preview could not be played."));
+        }
+      } catch { /* Keep playback stable if saved preferences are invalid. */ }
+    });
     audio.addEventListener("pause", () => setPlaying(false));
     audio.addEventListener("play", () => setPlaying(true));
     audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
