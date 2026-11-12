@@ -256,6 +256,24 @@ export default function HomePage() {
     }
   };
 
+  const shareShortcut = async (track: Track, destination: "copy" | "whatsapp" | "text" | "facebook") => {
+    const message = encodeURIComponent(`${track.trackName} — ${track.artistName} ${track.trackViewUrl}`);
+    try {
+      if (destination === "copy") {
+        await navigator.clipboard.writeText(track.trackViewUrl);
+        notify("Track link copied.");
+      } else if (destination === "whatsapp") {
+        window.open("https://wa.me/?text=" + message, "_blank", "noopener,noreferrer");
+      } else if (destination === "text") {
+        window.location.href = "sms:?&body=" + message;
+      } else {
+        window.open("https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(track.trackViewUrl), "_blank", "noopener,noreferrer");
+      }
+    } catch {
+      notify("Sharing is unavailable in this browser.");
+    }
+  };
+
   const visibleTracks = tracks.filter(
     (t) =>
       category === "All" ||
@@ -649,7 +667,7 @@ export default function HomePage() {
       {menuTrack && <div className="track-menu-backdrop" onClick={()=>setMenuTrack(null)}><section className="track-menu-sheet" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
         <div className="sheet-grip"/><button className="sheet-close" onClick={()=>setMenuTrack(null)}><X/></button>
         <div className="sheet-track"><img src={menuTrack.artworkUrl100} alt=""/><div><span>{menuTrack.artistName}</span><strong>{menuTrack.trackName}</strong></div></div>
-        <div className="share-shortcuts"><button onClick={()=>{void navigator.clipboard?.writeText(menuTrack.trackViewUrl);notify("Link copied.");setMenuTrack(null);}}><Link2/><span>Copy Link</span></button><button onClick={()=>void shareTrack(menuTrack)}><Send/><span>Share</span></button><button onClick={()=>void shareTrack(menuTrack)}><MessageCircle/><span>WhatsApp</span></button><button onClick={()=>void shareTrack(menuTrack)}><Copy/><span>Via Text</span></button><button onClick={()=>void shareTrack(menuTrack)}><span className="facebook-mark">f</span><span>Facebook</span></button></div>
+        <div className="share-shortcuts"><button onClick={()=>{void shareShortcut(menuTrack,"copy");setMenuTrack(null);}}><Link2/><span>Copy Link</span></button><button onClick={()=>void shareTrack(menuTrack)}><Send/><span>Share</span></button><button onClick={()=>void shareShortcut(menuTrack,"whatsapp")}><MessageCircle/><span>WhatsApp</span></button><button onClick={()=>void shareShortcut(menuTrack,"text")}><Copy/><span>Via Text</span></button><button onClick={()=>void shareShortcut(menuTrack,"facebook")}><span className="facebook-mark">f</span><span>Facebook</span></button></div>
         <div className="track-menu-actions">
           <button onClick={()=>{setFollowedArtists(a=>a.includes(menuTrack.artistName)?a.filter(x=>x!==menuTrack.artistName):[...a,menuTrack.artistName]);setMenuTrack(null);notify("Artist follow preference saved on this device.");}}><UserPlus/> More from Artist · {followedArtists.includes(menuTrack.artistName)?"Following":"Follow"}</button>
           <button onClick={()=>addToQueue(menuTrack,true)}><ListPlus/> Play Next</button><button onClick={()=>addToQueue(menuTrack)}><ListOrdered/> Add to Queue</button>
