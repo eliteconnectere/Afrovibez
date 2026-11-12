@@ -76,7 +76,7 @@ export default function SettingsPage() {
       <div className="settings-grid">
         <section className="settings-card">
           <div className="settings-card-heading"><span className="settings-icon"><SlidersHorizontal size={19}/></span><div><h2>Listening experience</h2><p>Choose how music behaves when you use the app.</p></div></div>
-          <div className="setting-row"><div><strong>Autoplay previews</strong><p>Automatically continue to another preview when one ends. (Coming with queue support.)</p></div><Toggle checked={prefs.autoplay} onChange={v => update("autoplay", v)} label="Autoplay previews"/></div>
+          <div className="setting-row"><div><strong>Autoplay previews</strong><p>Automatically play the next queued preview when the current preview ends.</p></div><Toggle checked={prefs.autoplay} onChange={v => update("autoplay", v)} label="Autoplay previews"/></div>
           <div className="setting-row"><div><strong>Higher quality artwork</strong><p>Prefer larger artwork when the catalogue provides it.</p></div><Toggle checked={prefs.highQuality} onChange={v => update("highQuality", v)} label="Higher quality artwork"/></div>
           <div className="setting-row"><div><strong>Show explicit-content tracks</strong><p>Allow explicit tracks to appear in discovery results.</p></div><Toggle checked={prefs.explicitContent} onChange={v => update("explicitContent", v)} label="Show explicit-content tracks"/></div>
         </section>
