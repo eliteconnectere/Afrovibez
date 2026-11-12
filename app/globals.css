@@ -260,3 +260,59 @@ html[data-theme="dark"] .settings-footnote{background:#222a3b;color:#b6bdcd}
  .af-transport{gap:4px}
  .af-transport .af-play-toggle{width:68px;height:68px}
 }
+
+
+/* Global theme contract: light is the original default; dark is a complete app-wide preference.
+   Brand accents remain AfroVibez blue, white and red in both modes. */
+:root{color-scheme:light}
+html[data-theme="light"]{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark;--ink:#f5f6fb;--muted:#aeb6ca;--red:#ef3f4b;--blue:#536bc8;--paper:#10182d;--line:#293553}
+html[data-theme="dark"] body,html[data-theme="dark"] .settings-page{background:#10182d;color:#f5f6fb}
+html[data-theme="dark"] .sidebar,html[data-theme="dark"] .topbar,html[data-theme="dark"] .player,html[data-theme="dark"] .settings-topbar,html[data-theme="dark"] .settings-card,html[data-theme="dark"] .track-card,html[data-theme="dark"] .bottom-callout{background:#17213b;color:#f5f6fb;border-color:#293553}
+html[data-theme="dark"] .sidebar-note,html[data-theme="dark"] .searchbar,html[data-theme="dark"] .chip,html[data-theme="dark"] .settings-footnote{background:#202d4c;color:#dce3f7;border-color:#334365}
+html[data-theme="dark"] .nav-item,html[data-theme="dark"] .top-tag,html[data-theme="dark"] .track-info span,html[data-theme="dark"] .track-info small,html[data-theme="dark"] .sidebar-note p,html[data-theme="dark"] .sidebar-foot,html[data-theme="dark"] .section-heading p,html[data-theme="dark"] .setting-row p,html[data-theme="dark"] .settings-card-heading p,html[data-theme="dark"] .privacy-item span,html[data-theme="dark"] .help-line span{color:#b5bfd8}
+html[data-theme="dark"] .nav-item.active,html[data-theme="dark"] .chip.selected{background:#293d78;color:#fff;border-color:#536bc8}
+html[data-theme="dark"] .track-card,html[data-theme="dark"] .bottom-callout,html[data-theme="dark"] .settings-card{border-color:#293553}
+html[data-theme="dark"] .track-card .icon-btn{color:#bdc7e0}
+html[data-theme="dark"] .track-card .icon-btn:hover{background:#293553;color:#fff}
+html[data-theme="dark"] .searchbar input{color:#f5f6fb}
+html[data-theme="dark"] .searchbar button{background:#ef3f4b;color:#fff}
+html[data-theme="dark"] .setting-select{background:#10182d;color:#f5f6fb;border-color:#394969}
+html[data-theme="dark"] .settings-card-heading,html[data-theme="dark"] .setting-row,html[data-theme="dark"] .privacy-item,html[data-theme="dark"] .help-line{border-color:#293553}
+html[data-theme="dark"] .settings-notice{background:#183d37;color:#b8f2db}
+html[data-theme="dark"] .settings-brand,html[data-theme="dark"] .settings-intro h1,html[data-theme="dark"] .settings-intro p,html[data-theme="dark"] .setting-row strong,html[data-theme="dark"] .settings-card-heading h2,html[data-theme="dark"] .privacy-item strong,html[data-theme="dark"] .help-line strong{color:#f5f6fb}
+html[data-theme="dark"] .settings-back{color:#c0c9df}
+html[data-theme="dark"] .coming-label{background:#293553;color:#c0c9df}
+html[data-theme="dark"] .notice{background:#47262d;color:#ffc3c8}
+html[data-theme="dark"] .full-player-backdrop{background:#10182d}
+html[data-theme="dark"] .full-player.af-now-playing{background:#10182d;color:#f5f6fb}
+html[data-theme="dark"] .af-player-topbar>button{background:#ffffff12;color:#fff}
+html[data-theme="dark"] .af-track-heading span,html[data-theme="dark"] .af-track-heading small,html[data-theme="dark"] .af-time-labels,html[data-theme="dark"] .af-section-title label,html[data-theme="dark"] .af-artist-card>p,html[data-theme="dark"] .af-preview-note{color:#b5bfd8}
+html[data-theme="dark"] .af-track-heading>button,html[data-theme="dark"] .af-primary-actions button,html[data-theme="dark"] .af-repeat-row button{color:#f5f6fb;border-color:#394969;background:#17213b}
+html[data-theme="dark"] .af-transport button{color:#f5f6fb}
+html[data-theme="dark"] .af-transport .af-play-toggle{background:#ef3f4b;color:#fff;border-color:#fff}
+html[data-theme="dark"] .af-mode-list button,html[data-theme="dark"] .af-mode-list button:nth-child(2),html[data-theme="dark"] .af-mode-list button:nth-child(3),html[data-theme="dark"] .af-mode-list button:nth-child(4),html[data-theme="dark"] .af-mode-list button:nth-child(5){background:linear-gradient(145deg,#273c91,#17213b);border-color:#394969;color:#fff}
+html[data-theme="dark"] .af-artist-avatar{background:#273c91}
+html[data-theme="dark"] .af-artist-row>button{color:#fff}
+html[data-theme="dark"] .af-artist-card{border-color:#293553}
+html[data-theme="dark"] .af-artist-card>a{color:#c5d2ff}
+
+/* Light mode preserves the original white interface and the agreed blue/white/red palette. */
+html[data-theme="light"] .full-player-backdrop{background:#f7f8fc}
+html[data-theme="light"] .full-player.af-now-playing{background:#fff;color:#171b2a}
+html[data-theme="light"] .af-player-topbar>button{background:#f0f2f7;color:#273c91}
+html[data-theme="light"] .af-player-topbar small{color:#85899a}
+html[data-theme="light"] .af-track-heading span,html[data-theme="light"] .af-track-heading small,html[data-theme="light"] .af-time-labels,html[data-theme="light"] .af-section-title label,html[data-theme="light"] .af-artist-card>p,html[data-theme="light"] .af-preview-note{color:#737888}
+html[data-theme="light"] .af-track-heading>button{color:#171b2a;border-color:#e3e6ef;background:#fff}
+html[data-theme="light"] .af-primary-actions button,html[data-theme="light"] .af-repeat-row button{color:#273c91;border-color:#e3e6ef;background:#fff}
+html[data-theme="light"] .af-transport button{color:#171b2a}
+html[data-theme="light"] .af-transport .af-play-toggle{background:#ef3f4b;color:#fff;border-color:#fff}
+html[data-theme="light"] .af-wave-bars span{background:#dfe2eb}
+html[data-theme="light"] .af-wave-bars span.played{background:#ef3f4b}
+html[data-theme="light"] .af-mode-list button,html[data-theme="light"] .af-mode-list button:nth-child(2),html[data-theme="light"] .af-mode-list button:nth-child(3),html[data-theme="light"] .af-mode-list button:nth-child(4),html[data-theme="light"] .af-mode-list button:nth-child(5){background:linear-gradient(145deg,#273c91,#536bc8);border-color:#dce2f4;color:#fff}
+html[data-theme="light"] .af-artist-avatar{background:#273c91}
+html[data-theme="light"] .af-artist-row>strong{color:#171b2a}
+html[data-theme="light"] .af-artist-row>button{color:#273c91}
+html[data-theme="light"] .af-artist-card{border-color:#e9eaf0}
+html[data-theme="light"] .af-artist-card>a{color:#273c91}
+html[data-theme="light"] .af-preview-note{border-color:#e9eaf0}
