@@ -19,6 +19,7 @@ type Track = {
   primaryGenreName?: string;
   trackExplicitness?: string;
   contentAdvisoryRating?: string;
+  source?: "studio" | "apple";
 };
 
 type View = "discover" | "charts" | "library" | "queue";
@@ -206,7 +207,7 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, previewUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, previewUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean", source: "studio" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
@@ -371,7 +372,10 @@ export default function HomePage() {
 
   const isExplicit = (track: Track) => track.trackExplicitness?.toLowerCase() === "explicit" || track.contentAdvisoryRating?.toLowerCase() === "explicit";
   const artworkUrl = (track: Track, high: string, low: string) => track.artworkUrl100?.replace("100x100", highQualityArtwork ? high : low);
-  const visibleTracks = [...studioTracks, ...tracks].filter(
+  const visibleTracks = [...studioTracks.filter((t) => {
+    const term = query.trim().toLowerCase();
+    return !term || `${t.trackName} ${t.artistName} ${t.primaryGenreName || ""}`.toLowerCase().includes(term);
+  }), ...tracks].filter(
     (t) => (showExplicitContent || !isExplicit(t)) && (
       category === "All" ||
       (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) ||
@@ -434,7 +438,7 @@ export default function HomePage() {
           className="cover-play"
           onClick={() => playTrack(track)}
           disabled={!track.previewUrl}
-          aria-label={track.previewUrl ? "Play preview" : "Preview unavailable"}
+          aria-label={track.previewUrl ? (track.source === "studio" ? "Play full release" : "Play preview") : "Playback unavailable"}
         >
           {current?.trackId === track.trackId && playing ? (
             <Pause fill="currentColor" size={18} />
@@ -743,7 +747,7 @@ export default function HomePage() {
             <img src={current.artworkUrl100} alt="" />
             <span className="player-track">
               <strong>{current.trackName}</strong>
-              <span>{current.artistName} · Preview</span>
+              <span>{current.artistName} · {current.source === "studio" ? "Full release" : "Preview"}</span>
             </span>
           </button>
           <div className="player-controls">
@@ -836,7 +840,7 @@ export default function HomePage() {
               <p>Catalogue listing · {current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
               <a href={current.trackViewUrl} target="_blank" rel="noreferrer">Open official catalogue listing <ExternalLink/></a>
             </section>
-            <div className="af-preview-note">You are listening to an Apple Music catalogue preview. Full-track playback and licensed downloads are not connected.</div>
+            <div className="af-preview-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an Apple Music catalogue preview. Full-track playback and licensed downloads are not connected for catalogue previews."}</div>
           </section>
         </div>
       )}
