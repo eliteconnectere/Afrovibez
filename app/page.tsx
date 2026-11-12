@@ -188,9 +188,13 @@ export default function HomePage() {
       const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       if (!base || !key) return;
       try {
-        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,studio_artists(stage_name)&status=eq.approved&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type&status=eq.approved&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
         if (!response.ok) throw new Error("Published AfroVibe releases are temporarily unavailable.");
         const rows = await response.json();
+        const artistIds = [...new Set((rows || []).map((row: any) => row.artist_id))];
+        const artistResponse = artistIds.length ? await fetch(`${base}/rest/v1/studio_artist_public?select=id,stage_name&id=in.(${artistIds.join(",")})`, { headers: { apikey: key, Authorization: `Bearer ${key}` } }) : null;
+        const artistRows = artistResponse?.ok ? await artistResponse.json() : [];
+        const artistNames = new Map((artistRows || []).map((artist: any) => [artist.id, artist.stage_name]));
         const signed = await Promise.all((rows || []).map(async (row: any) => {
           const sign = async (bucket: string, path: string) => {
             const encoded = path.split("/").map(encodeURIComponent).join("/");
@@ -202,7 +206,7 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: row.studio_artists?.stage_name || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, previewUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, previewUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
