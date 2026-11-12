@@ -134,19 +134,48 @@ html[data-theme="dark"] .settings-footnote{background:#222a3b;color:#b6bdcd}
 
 /* AfroVibez track actions and queue */
 .track-menu-backdrop{position:fixed;inset:0;z-index:130;background:#000b;display:flex;align-items:flex-end;justify-content:center}
-.track-menu-sheet{position:relative;width:min(100%,620px);max-height:92dvh;overflow:auto;background:#101010;color:#fff;border-radius:22px 22px 0 0;padding:24px 22px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -12px 50px #0008}
-.sheet-grip{width:54px;height:5px;border-radius:8px;background:#555;margin:0 auto 24px}
+.track-menu-sheet{position:relative;width:min(100%,620px);max-height:92dvh;overflow:auto;background:#172b70;color:#fff;border-radius:22px 22px 0 0;padding:24px 22px calc(24px + env(safe-area-inset-bottom));box-shadow:0 -12px 50px #0008}
+.sheet-grip{width:54px;height:5px;border-radius:8px;background:#ffffff70;margin:0 auto 24px}
 .sheet-close{position:absolute;right:18px;top:16px;border:0;background:transparent;color:#fff;padding:8px}
-.sheet-track{display:flex;align-items:center;gap:13px;padding:8px 42px 20px 0;border-bottom:1px solid #333}
+.sheet-track{display:flex;align-items:center;gap:13px;padding:8px 42px 20px 0;border-bottom:1px solid #ffffff35}
 .sheet-track img{width:62px;height:62px;object-fit:cover;border-radius:8px}
-.sheet-track div{display:flex;flex-direction:column;gap:4px}.sheet-track span{color:#bbb;font-size:14px}.sheet-track strong{font-size:17px}
+.sheet-track div{display:flex;flex-direction:column;gap:4px}.sheet-track span{color:#e0e7ff;font-size:14px}.sheet-track strong{font-size:17px}
 .share-shortcuts{display:flex;justify-content:space-between;gap:8px;padding:22px 0;overflow-x:auto;border-bottom:1px solid #333}
 .share-shortcuts button{flex:1;min-width:58px;display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:0;color:#fff;font-size:24px}
-.share-shortcuts button span{font-size:11px;color:#ccc;white-space:nowrap}
+.share-shortcuts button span{font-size:11px;color:#fff;white-space:nowrap}
 .track-menu-actions{display:flex;flex-direction:column}
 .track-menu-actions button{display:flex;align-items:center;gap:17px;min-height:66px;background:none;border:0;border-bottom:1px solid #333;color:#fff;text-align:left;font-size:16px;font-weight:650}
-.track-menu-actions svg{width:22px;height:22px;color:#ffa400;flex:0 0 22px}
-.local-only-note{font-size:11px;line-height:1.6;color:#999;margin:17px 0 0}
+.track-menu-actions svg{width:22px;height:22px;color:#ef3f4b;flex:0 0 22px}
+.local-only-note{font-size:11px;line-height:1.6;color:#e0e7ff;margin:17px 0 0}
 .af-toast{position:fixed;z-index:160;bottom:100px;left:50%;transform:translateX(-50%);background:#242424;color:#fff;padding:12px 18px;border-radius:30px;font-size:13px;box-shadow:0 5px 25px #0005;max-width:90%;text-align:center}
 @media(min-width:760px){.track-menu-backdrop{align-items:center;padding:20px}.track-menu-sheet{border-radius:20px;max-height:85vh}}
 @media(max-width:600px){.track-menu-sheet{padding-left:18px;padding-right:18px}.track-menu-actions button{min-height:60px}}
+
+/* Detailed player controls using only AfroVibez blue, white and red */
+.full-player{border:1px solid #e5e9f8}
+.full-player-live{background:#fff0f1;color:#d93645}
+.full-player-timeline input[type=range]{accent-color:#df3f4b}
+.full-player-controls .full-play-button{background:#df3f4b}
+.full-player-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0 15px;border-top:1px solid #e9eaf0;border-bottom:1px solid #e9eaf0;margin:0 0 12px}
+.tool-btn{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#273c91;font:600 10px 'DM Sans';cursor:pointer;padding:7px 5px;border-radius:8px}
+.tool-btn svg{width:17px;height:17px}
+.tool-btn.is-active{background:#fff0f1;color:#df3f4b}
+.volume-control{display:flex;align-items:center;gap:7px;color:#273c91;min-width:90px}
+.volume-control svg{width:17px;height:17px;flex:0 0 17px}
+.volume-control input{width:75px;accent-color:#df3f4b}
+.player-actions{gap:12px}
+.action-btn{min-width:54px;color:#273c91}
+.action-btn.liked{color:#df3f4b}
+.share-shortcuts button{cursor:pointer}
+.share-shortcuts button>svg{width:25px;height:25px;color:#ef3f4b}
+.facebook-mark{font:700 27px Arial;color:#fff}
+.track-menu-actions button{cursor:pointer;border-bottom-color:#ffffff35}
+.track-menu-actions svg{color:#ef3f4b}
+@media(max-width:600px){
+ .full-player{padding-left:20px;padding-right:20px}
+ .full-player-tools{gap:5px}
+ .tool-btn{flex-direction:column;gap:3px;font-size:9px}
+ .volume-control{min-width:76px;gap:4px}
+ .volume-control input{width:53px}
+ .player-actions{gap:3px}
+}
