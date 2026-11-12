@@ -150,6 +150,15 @@ export default function HomePage() {
   }, [liked, queue, playlists, followedArtists, storageReady]);
 
   useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
+      document.documentElement.dataset.theme = saved.theme === "dark" ? "dark" : "light";
+    } catch {
+      document.documentElement.dataset.theme = "light";
+    }
+  }, []);
+
+  useEffect(() => {
     const stay = localStorage.getItem("afrovibez.keepAudioMode") === "true";
     setKeepAudioMode(stay);
   }, []);
