@@ -189,7 +189,9 @@ export default function HomePage() {
       const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
       if (!base || !key) return;
       try {
-        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,release_date&status=eq.approved&release_date=lte.${new Intl.DateTimeFormat("en-CA").format(new Date())}&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+        const now = new Date();
+        const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,release_date&status=eq.approved&release_date=lte.${localToday}&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
         if (!response.ok) throw new Error("Published AfroVibe releases are temporarily unavailable.");
         const rows = await response.json();
         const artistIds = Array.from(new Set((rows || []).map((row: any) => row.artist_id)));
