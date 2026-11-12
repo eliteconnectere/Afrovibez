@@ -308,7 +308,8 @@ export default function HomePage() {
 
   const playAdjacent = (direction: -1 | 1) => {
     if (!current) return;
-    const playable = (view === "charts" ? charts : tracks).filter((t) => !!t.previewUrl);
+    const playable = [...tracks, ...charts, ...Object.values(sectionTracks).flat()]
+      .filter((t, index, all) => !!t.previewUrl && all.findIndex(x => x.trackId === t.trackId) === index);
     if (!playable.length) return;
     if (shuffleRef.current && direction > 0) {
       const choices = playable.filter(t => t.trackId !== current.trackId);
