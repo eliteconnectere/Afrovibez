@@ -105,7 +105,7 @@ export default function SettingsPage() {
     URL.revokeObjectURL(url); setNotice("Your device data export has been created.");
   };
   const resetPreferences = () => {
-    setPrefs(defaults); setProfile(profileDefaults); setConfirmReset(false);
+    setPrefs(defaults); setConfirmReset(false);
     setNotice("Appearance, playback, notification and local profile preferences have been reset.");
   };
   const clearAllData = () => {
