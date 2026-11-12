@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Music2, Menu, X, Radio, ListMusic, ExternalLink, LoaderCircle } from "lucide-react";
+import { Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward, Music2, Menu, X, Radio, ListMusic, ExternalLink, LoaderCircle, Settings } from "lucide-react";
 
 type Track = { trackId: number; trackName: string; artistName: string; collectionName?: string; artworkUrl100: string; previewUrl?: string; trackViewUrl: string; primaryGenreName?: string; };
 const categories = ["All", "Afrobeats", "Afropop", "Amapiano", "Highlife", "Gospel", "Hip-Hop"];
@@ -59,6 +59,7 @@ export default function HomePage() {
         <a className="nav-item active" href="#discover" onClick={() => setMobileNav(false)}><Home size={19}/> Discover</a>
         <a className="nav-item" href="#browse" onClick={() => setMobileNav(false)}><Search size={19}/> Browse music</a>
         <a className="nav-item" href="#library" onClick={() => setMobileNav(false)}><Library size={19}/> Your library</a>
+        <a className="nav-item" href="/settings" onClick={() => setMobileNav(false)}><Settings size={19}/> Settings</a>
       </nav>
       <div className="sidebar-note"><div className="note-icon"><Headphones size={21}/></div><strong>Your sound. Your roots.</strong><p>Find music, explore artists and preview new sounds.</p></div>
       <div className="sidebar-foot">Music catalogue provided by Apple iTunes Search.<br/>Preview availability varies by track.</div>
