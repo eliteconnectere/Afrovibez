@@ -191,10 +191,10 @@ export default function HomePage() {
         const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type&status=eq.approved&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
         if (!response.ok) throw new Error("Published AfroVibe releases are temporarily unavailable.");
         const rows = await response.json();
-        const artistIds = [...new Set((rows || []).map((row: any) => row.artist_id))];
+        const artistIds = Array.from(new Set((rows || []).map((row: any) => row.artist_id)));
         const artistResponse = artistIds.length ? await fetch(`${base}/rest/v1/studio_artist_public?select=id,stage_name&id=in.(${artistIds.join(",")})`, { headers: { apikey: key, Authorization: `Bearer ${key}` } }) : null;
         const artistRows = artistResponse?.ok ? await artistResponse.json() : [];
-        const artistNames = new Map((artistRows || []).map((artist: any) => [artist.id, artist.stage_name]));
+        const artistNames = new Map<string, string>((artistRows || []).map((artist: any) => [artist.id, artist.stage_name] as [string, string]));
         const signed = await Promise.all((rows || []).map(async (row: any) => {
           const sign = async (bucket: string, path: string) => {
             const encoded = path.split("/").map(encodeURIComponent).join("/");
