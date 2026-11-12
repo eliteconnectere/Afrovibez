@@ -217,6 +217,7 @@ export default function HomePage() {
           const remaining = nextQueue.filter((_, index) => index !== nextIndex);
           setQueue(remaining);
           localStorage.setItem("afrovibez.queue.v1", JSON.stringify(remaining));
+          currentTrackIdRef.current = next.trackId;
           setCurrent(next);
           audio.src = next.previewUrl!;
           void audio.play().catch(() => { setPlaying(false); setToast("The next preview could not be played."); });
@@ -226,6 +227,7 @@ export default function HomePage() {
       const available = catalogueRef.current.filter(track => track.previewUrl && track.trackId !== currentTrackIdRef.current);
       if (available.length) {
         const next = shuffleRef.current ? available[Math.floor(Math.random() * available.length)] : available[0];
+        currentTrackIdRef.current = next.trackId;
         setCurrent(next);
         audio.src = next.previewUrl!;
         void audio.play().catch(() => { setPlaying(false); setToast("The next preview could not be played."); });
@@ -551,7 +553,7 @@ export default function HomePage() {
                   key={s.id}
                   title={s.title}
                   subtitle={s.subtitle}
-                  list={sectionTracks[s.id] || []}
+                  list={(sectionTracks[s.id] || []).filter(track => showExplicitContent || !isExplicit(track))}
                   loading={sectionsLoading}
                 />
               ))}
@@ -622,7 +624,7 @@ export default function HomePage() {
                 <div className="loading"><LoaderCircle className="spin" /> Loading charts…</div>
               ) : charts.length ? (
                 <div className="charts-list">
-                  {charts.map((track, i) => (
+                  {charts.filter(track => showExplicitContent || !isExplicit(track)).map((track, i) => (
                     <article className="chart-row" key={track.trackId}>
                       <span className="rank">{i + 1}</span>
                       <div className="chart-cover">
