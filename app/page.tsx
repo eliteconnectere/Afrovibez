@@ -47,7 +47,6 @@ export default function HomePage() {
   const [playerOpen, setPlayerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(30);
-  const [volume, setVolume] = useState(0.85);
   const [shuffleEnabled, setShuffleEnabled] = useState(false);
   const [repeatEnabled, setRepeatEnabled] = useState(false);
   const [audioMode, setAudioMode] = useState<"normal"|"sped"|"slowed"|"nightcore"|"daycore">("normal");
@@ -149,6 +148,11 @@ export default function HomePage() {
       localStorage.setItem("afrovibez.follows.v1", JSON.stringify(followedArtists));
     } catch { setToast("Browser storage is full; some changes may not persist."); }
   }, [liked, queue, playlists, followedArtists, storageReady]);
+
+  useEffect(() => {
+    const stay = localStorage.getItem("afrovibez.keepAudioMode") === "true";
+    setKeepAudioMode(stay);
+  }, []);
 
   useEffect(() => {
     loadTracks(query);
