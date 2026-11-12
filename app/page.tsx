@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward,
   Music2, Menu, X, ListMusic, ExternalLink, LoaderCircle, Settings, TrendingUp,
-  Share2, Plus, BarChart3, MoreVertical, ListPlus, Radio, Info, UserPlus, ListOrdered
+  Share2, Plus, BarChart3, MoreVertical, ListPlus, Radio, Info, UserPlus, ListOrdered,
+  Link2, MessageCircle, Send, Copy, Volume2, Repeat, Shuffle, Album
 } from "lucide-react";
 
 type Track = {
@@ -46,6 +47,11 @@ export default function HomePage() {
   const [playerOpen, setPlayerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(30);
+  const [volume, setVolume] = useState(0.85);
+  const [shuffleEnabled, setShuffleEnabled] = useState(false);
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const shuffleRef = useRef(false);
+  const repeatRef = useRef(false);
   const [liked, setLiked] = useState<Set<number>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
@@ -157,7 +163,13 @@ export default function HomePage() {
   useEffect(() => {
     const audio = new Audio();
     audioRef.current = audio;
+    audio.volume = 0.85;
     audio.addEventListener("ended", () => {
+      if (repeatRef.current) {
+        audio.currentTime = 0;
+        void audio.play().catch(() => setToast("This preview could not be replayed."));
+        return;
+      }
       setPlaying(false);
       setCurrentTime(0);
       try {
@@ -264,9 +276,14 @@ export default function HomePage() {
     if (!current) return;
     const playable = (view === "charts" ? charts : tracks).filter((t) => !!t.previewUrl);
     if (!playable.length) return;
+    if (shuffleRef.current && direction > 0) {
+      const choices = playable.filter(t => t.trackId !== current.trackId);
+      if (choices.length) void playTrack(choices[Math.floor(Math.random() * choices.length)]);
+      return;
+    }
     const index = playable.findIndex((t) => t.trackId === current.trackId);
-    const next = playable[(index + direction + playable.length) % playable.length];
-    void playTrack(next);
+    const nextIndex = index < 0 ? (direction > 0 ? 0 : playable.length - 1) : (index + direction + playable.length) % playable.length;
+    void playTrack(playable[nextIndex]);
   };
 
   const seek = (value: number) => {
@@ -704,20 +721,18 @@ export default function HomePage() {
                 <SkipForward size={25} fill="currentColor" />
               </button>
             </div>
+            <div className="full-player-tools" aria-label="Playback options">
+              <button className={"tool-btn " + (shuffleEnabled ? "is-active" : "")} onClick={() => {const next=!shuffleEnabled;shuffleRef.current=next;setShuffleEnabled(next);}} aria-pressed={shuffleEnabled}><Shuffle/><span>Shuffle</span></button>
+              <button className="tool-btn" onClick={() => addToQueue(current)}><ListPlus/><span>Queue</span></button>
+              <button className={"tool-btn " + (repeatEnabled ? "is-active" : "")} onClick={() => {const next=!repeatEnabled;repeatRef.current=next;setRepeatEnabled(next);}} aria-pressed={repeatEnabled}><Repeat/><span>Repeat</span></button>
+              <label className="volume-control"><Volume2/><input aria-label="Volume" type="range" min="0" max="1" step="0.05" value={volume} onChange={e=>{const next=Number(e.target.value);setVolume(next);if(audioRef.current)audioRef.current.volume=next;}}/></label>
+            </div>
             <div className="player-actions">
-              <button
-                className={"action-btn " + (liked.has(current.trackId) ? "liked" : "")}
-                onClick={() => toggleLike(current.trackId)}
-              >
-                <Heart size={18} fill={liked.has(current.trackId) ? "currentColor" : "none"} />
-                <span>Like</span>
-              </button>
-              <button className="action-btn" onClick={() => shareTrack(current)}>
-                <Share2 size={18} />
-                <span>Share</span>
-              </button>
-              <button className="action-btn" onClick={() => addToPlaylist(current)}><Plus size={18}/><span>Playlist</span></button>
-              <button className="action-btn" onClick={() => setMenuTrack(current)}><MoreVertical size={18}/><span>More</span></button>
+              <button className={"action-btn " + (liked.has(current.trackId) ? "liked" : "")} onClick={() => toggleLike(current.trackId)}><Heart size={19} fill={liked.has(current.trackId) ? "currentColor" : "none"}/><span>{liked.has(current.trackId)?"Liked":"Like"}</span></button>
+              <button className="action-btn" onClick={() => shareTrack(current)}><Share2 size={19}/><span>Share</span></button>
+              <button className="action-btn" onClick={() => addToQueue(current)}><ListPlus size={19}/><span>Queue</span></button>
+              <button className="action-btn" onClick={() => addToPlaylist(current)}><Plus size={19}/><span>Playlist</span></button>
+              <button className="action-btn" onClick={() => setMenuTrack(current)}><MoreVertical size={19}/><span>More</span></button>
             </div>
             <div className="full-player-caption">
               You are listening to a short catalogue preview. Full-track playback is not connected yet.
