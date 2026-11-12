@@ -53,6 +53,7 @@ export default function HomePage() {
   const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
   const [followedArtists, setFollowedArtists] = useState<string[]>([]);
   const [toast, setToast] = useState("");
+  const [storageReady, setStorageReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const fetchTracks = useCallback(async (term: string, limit = 24) => {
