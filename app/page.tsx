@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward,
   Music2, Menu, X, ListMusic, ExternalLink, LoaderCircle, Settings, TrendingUp,
-  Share2, Plus, BarChart3, ChevronRight
+  Share2, Plus, BarChart3
 } from "lucide-react";
 
 type Track = {
@@ -88,9 +88,9 @@ export default function HomePage() {
         sectionsConfig.map(async (s) => {
           try {
             const list = await fetchTracks(s.term, 12);
-            return [s.id, list] as const;
+            return [s.id, list] as [string, Track[]];
           } catch {
-            return [s.id, []] as const;
+            return [s.id, [] as Track[]] as [string, Track[]];
           }
         })
       );
