@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward,
   Music2, Menu, X, ListMusic, ExternalLink, LoaderCircle, Settings, TrendingUp,
-  Share2, Plus, BarChart3
+  Share2, Plus, BarChart3, MoreVertical, ListPlus, Radio, Info, UserPlus, ListOrdered
 } from "lucide-react";
 
 type Track = {
@@ -18,7 +18,7 @@ type Track = {
   primaryGenreName?: string;
 };
 
-type View = "discover" | "charts" | "library";
+type View = "discover" | "charts" | "library" | "queue";
 
 const categories = ["All", "Afrobeats", "Afropop", "Amapiano", "Highlife", "Gospel", "Hip-Hop"];
 
@@ -48,6 +48,11 @@ export default function HomePage() {
   const [duration, setDuration] = useState(30);
   const [liked, setLiked] = useState<Set<number>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
+  const [menuTrack, setMenuTrack] = useState<Track | null>(null);
+  const [queue, setQueue] = useState<Track[]>([]);
+  const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
+  const [followedArtists, setFollowedArtists] = useState<string[]>([]);
+  const [toast, setToast] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const fetchTracks = useCallback(async (term: string, limit = 24) => {
@@ -169,6 +174,17 @@ export default function HomePage() {
     }
   };
 
+  const notify = (message:string) => { setToast(message); window.setTimeout(()=>setToast(""),2500); };
+  const addToQueue = (track:Track, next=false) => {
+    setQueue(items => next ? [track,...items.filter(t=>t.trackId!==track.trackId)] : [...items.filter(t=>t.trackId!==track.trackId),track]);
+    setMenuTrack(null); notify(next ? "Added to play next." : "Added to queue.");
+  };
+  const addToPlaylist = (track:Track) => {
+    const name=window.prompt("Name your playlist");
+    if(!name?.trim()) return;
+    setPlaylists(items=>{const found=items.find(p=>p.name.toLowerCase()===name.trim().toLowerCase());return found?items.map(p=>p.id===found.id?{...p,tracks:[...p.tracks.filter(t=>t.trackId!==track.trackId),track]}:p):[...items,{id:String(Date.now()),name:name.trim(),tracks:[track]}];});
+    setMenuTrack(null);notify("Playlist saved on this device.");
+  };
   const toggleLike = (id: number) => {
     setLiked((prev) => {
       const next = new Set(prev);
@@ -264,13 +280,7 @@ export default function HomePage() {
         >
           <Heart size={15} fill={liked.has(track.trackId) ? "currentColor" : "none"} />
         </button>
-        <button
-          className="icon-btn"
-          onClick={() => window.open(track.trackViewUrl, "_blank", "noopener,noreferrer")}
-          aria-label="Open track"
-        >
-          <ExternalLink size={14} />
-        </button>
+        <button className="icon-btn" onClick={() => setMenuTrack(track)} aria-label="More track options"><MoreVertical size={17}/></button>
       </div>
     </article>
   );
@@ -344,6 +354,7 @@ export default function HomePage() {
           >
             <Library size={19} /> Your library
           </button>
+          <button className={"nav-item " + (view==="queue"?"active":"")} onClick={()=>{setView("queue");setMobileNav(false);}}><ListOrdered size={19}/> Your queue</button>
           <a className="nav-item" href="/settings" onClick={() => setMobileNav(false)}>
             <Settings size={19} /> Settings
           </a>
@@ -512,6 +523,12 @@ export default function HomePage() {
             </section>
           )}
 
+          {view === "queue" && (
+            <section className="library-view"><div className="section-heading"><div><div className="eyebrow dark">UP NEXT</div><h2>Your queue</h2><p>{queue.length} tracks waiting.</p></div></div>
+              {queue.length ? <div className="charts-list">{queue.map((t,i)=><article className="chart-row" key={t.trackId}><span className="rank">{i+1}</span><div className="chart-cover"><img src={t.artworkUrl100} alt=""/></div><div className="chart-info"><strong>{t.trackName}</strong><span>{t.artistName}</span></div><button className="icon-btn" onClick={()=>void playTrack(t)}><Play size={16}/></button><button className="icon-btn" onClick={()=>setQueue(q=>q.filter(x=>x.trackId!==t.trackId))}><X size={16}/></button></article>)}</div>:<div className="bottom-callout"><strong>Your queue is empty</strong><p>Use a song’s options menu to add tracks.</p></div>}
+            </section>
+          )}
+
           {view === "library" && (
             <section className="library-view">
               <div className="section-heading">
@@ -576,6 +593,20 @@ export default function HomePage() {
         </div>
       )}
 
+      {toast && <div className="af-toast" role="status">{toast}</div>}
+      {menuTrack && <div className="track-menu-backdrop" onClick={()=>setMenuTrack(null)}><section className="track-menu-sheet" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
+        <div className="sheet-grip"/><button className="sheet-close" onClick={()=>setMenuTrack(null)}><X/></button>
+        <div className="sheet-track"><img src={menuTrack.artworkUrl100} alt=""/><div><span>{menuTrack.artistName}</span><strong>{menuTrack.trackName}</strong></div></div>
+        <div className="share-shortcuts"><button onClick={()=>{void navigator.clipboard?.writeText(menuTrack.trackViewUrl);notify("Link copied.");setMenuTrack(null);}}>🔗<span>Copy Link</span></button><button onClick={()=>void shareTrack(menuTrack)}>◎<span>Share</span></button><button onClick={()=>void shareTrack(menuTrack)}>◉<span>WhatsApp</span></button><button onClick={()=>void shareTrack(menuTrack)}>●<span>Via Text</span></button><button onClick={()=>void shareTrack(menuTrack)}>f<span>Facebook</span></button></div>
+        <div className="track-menu-actions">
+          <button onClick={()=>{setFollowedArtists(a=>a.includes(menuTrack.artistName)?a.filter(x=>x!==menuTrack.artistName):[...a,menuTrack.artistName]);setMenuTrack(null);notify("Artist follow preference saved on this device.");}}><UserPlus/> More from Artist · {followedArtists.includes(menuTrack.artistName)?"Following":"Follow"}</button>
+          <button onClick={()=>addToQueue(menuTrack,true)}><ListPlus/> Play Next</button><button onClick={()=>addToQueue(menuTrack)}><ListOrdered/> Add to Queue</button>
+          <button onClick={()=>{toggleLike(menuTrack.trackId);setMenuTrack(null);}}><Heart/> {liked.has(menuTrack.trackId)?"Unlike":"Like"}</button>
+          <button onClick={()=>addToPlaylist(menuTrack)}><Plus/> Add to Playlist</button>
+          <button onClick={()=>{setQuery(menuTrack.artistName);setInput(menuTrack.artistName);setView("discover");setMenuTrack(null);}}><Radio/> See similar songs</button>
+          <button onClick={()=>{window.open(menuTrack.trackViewUrl,"_blank","noopener,noreferrer");setMenuTrack(null);}}><Info/> More Info / Catalogue listing</button>
+        </div><p className="local-only-note">Your likes, follows, playlists and queue are saved on this device. Shared social feeds, comments and licensed downloads need connected services.</p>
+      </section></div>}
       {current && playerOpen && (
         <div
           className="full-player-backdrop"
@@ -650,10 +681,8 @@ export default function HomePage() {
                 <Share2 size={18} />
                 <span>Share</span>
               </button>
-              <button className="action-btn" disabled title="Coming soon">
-                <Plus size={18} />
-                <span>Playlist</span>
-              </button>
+              <button className="action-btn" onClick={() => addToPlaylist(current)}><Plus size={18}/><span>Playlist</span></button>
+              <button className="action-btn" onClick={() => setMenuTrack(current)}><MoreVertical size={18}/><span>More</span></button>
             </div>
             <div className="full-player-caption">
               You are listening to a short catalogue preview. Full-track playback is not connected yet.
