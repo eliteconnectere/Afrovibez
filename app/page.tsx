@@ -123,6 +123,26 @@ export default function HomePage() {
   }, [fetchTracks]);
 
   useEffect(() => {
+    try {
+      setLiked(new Set(JSON.parse(localStorage.getItem("afrovibez.likes.v1") || "[]")));
+      setQueue(JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]"));
+      setPlaylists(JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]"));
+      setFollowedArtists(JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]"));
+    } catch { /* Ignore malformed local preferences. */ }
+    finally { setStorageReady(true); }
+  }, []);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    try {
+      localStorage.setItem("afrovibez.likes.v1", JSON.stringify([...liked]));
+      localStorage.setItem("afrovibez.queue.v1", JSON.stringify(queue));
+      localStorage.setItem("afrovibez.playlists.v1", JSON.stringify(playlists));
+      localStorage.setItem("afrovibez.follows.v1", JSON.stringify(followedArtists));
+    } catch { setToast("Browser storage is full; some changes may not persist."); }
+  }, [liked, queue, playlists, followedArtists, storageReady]);
+
+  useEffect(() => {
     loadTracks(query);
   }, [query, loadTracks]);
 
