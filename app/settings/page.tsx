@@ -162,22 +162,31 @@ export default function SettingsPage() {
       {notice && <div className="settings-notice" role="status"><Check size={15}/>{notice}<button onClick={() => setNotice("")} aria-label="Dismiss message">×</button></div>}
 
       {section === "overview" ? <>
-        <section className="account-panel">
-          <div className="account-avatar"><UserRound size={25}/></div>
-          <div className="account-copy"><span className="panel-eyebrow">YOUR ACCOUNT</span><h2>{profile.displayName.trim() || "Make AfroVibez yours"}</h2><p>{profile.displayName.trim() ? "Your local profile is ready to personalise. It is currently saved only in this browser." : "You can personalise a local profile now. Secure registration and account sync will be enabled when the account service is connected."}</p><span className="account-status"><i/> {profile.displayName.trim() ? "LOCAL PROFILE" : "ACCOUNT REGISTRATION NOT YET ACTIVE"}</span></div>
-          <button className="account-disabled" type="button" disabled>Create account <ChevronRight size={16}/></button>
-        </section>
-        <div className="settings-section-label">{t("ACCOUNT & PERSONALISATION")}</div>
-        <div className="settings-menu-list">
-          {sections.slice(0, 2).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span>{item.status && <em>{item.status}</em>}<ChevronRight size={19}/></button>; })}
-        </div>
-        <div className="settings-section-label">{t("APP PREFERENCES")}</div>
-        <div className="settings-menu-list">
-          {sections.slice(2, 6).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span>{item.status && <em>{item.status}</em>}<ChevronRight size={19}/></button>; })}
-        </div>
-        <div className="settings-section-label">{t("PRIVACY, STORAGE & SUPPORT")}</div>
-        <div className="settings-menu-list">
-          {sections.slice(6).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span><ChevronRight size={19}/></button>; })}
+        <div className="settings-reference-list">
+          <section className="settings-reference-group">
+            <h2>ACCOUNT</h2>
+            <button onClick={() => setSection("account")}>Account & security <ChevronRight size={21}/></button>
+            <button onClick={() => setSection("notifications")}>Notifications <ChevronRight size={21}/></button>
+          </section>
+          <section className="settings-reference-group">
+            <h2>APP</h2>
+            <button onClick={() => setSection("appearance")}>Appearance <ChevronRight size={21}/></button>
+            <button onClick={() => setSection("language")}>Language <ChevronRight size={21}/></button>
+            <button onClick={() => setSection("help")}>Help & about <ChevronRight size={21}/></button>
+          </section>
+          <section className="settings-reference-group">
+            <h2>PLAYBACK</h2>
+            <button onClick={() => setSection("playback")}>Playback & audio <ChevronRight size={21}/></button>
+          </section>
+          <section className="settings-reference-group">
+            <h2>PROFILE</h2>
+            <button onClick={() => setSection("profile")}>Edit profile <ChevronRight size={21}/></button>
+          </section>
+          <section className="settings-reference-group">
+            <h2>DATA & PRIVACY</h2>
+            <button onClick={() => setSection("privacy")}>Privacy & social <ChevronRight size={21}/></button>
+            <button onClick={() => setSection("storage")}>Data & storage <ChevronRight size={21}/></button>
+          </section>
         </div>
       </> : <>
         <button className="settings-detail-back" onClick={() => { setSection("overview"); setNotice(""); }}><ArrowLeft size={16}/> {t("All settings")}</button>
