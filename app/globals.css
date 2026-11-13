@@ -404,3 +404,26 @@ html[data-theme="dark"] .settings-confirm button:nth-child(2){background:#d93645
  .theme-choice-grid{gap:9px}
  .theme-preview{height:65px}
 }
+
+
+/* Artist identity and offline playback */
+.track-artist-link{display:block;border:0;background:transparent;padding:0;text-align:left;color:inherit;font:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:#1769d266;text-underline-offset:3px}
+.track-artist-link:hover,.af-artist-name-link:hover strong{color:#e3293f}
+.af-artist-name-link{display:flex;align-items:center;gap:12px;flex:1;min-width:0;background:transparent;border:0;color:inherit;text-align:left;cursor:pointer;padding:0}
+.af-artist-name-link strong{font-size:15px}
+.af-primary-actions button:disabled{opacity:.55;cursor:not-allowed}
+.af-primary-actions button.offline-saved{border-color:#3dba83;color:#8ff0bd}
+.af-primary-actions button.offline-saved svg{color:#8ff0bd}
+.artist-profile-backdrop{position:fixed;inset:0;z-index:190;background:#080d1bc9;display:flex;align-items:center;justify-content:center;padding:20px}
+.artist-profile-sheet{position:relative;width:min(520px,100%);max-height:88vh;overflow:auto;border-radius:22px;padding:30px;background:#fff;color:#14243d;box-shadow:0 24px 80px #0005}
+.artist-profile-close{position:absolute;right:16px;top:16px;width:38px;height:38px;border:0;border-radius:50%;background:#eef3fa;color:#14243d;display:grid;place-items:center}
+.artist-profile-avatar{width:112px;height:112px;object-fit:cover;border-radius:50%;display:block;margin:0 auto 18px}
+.artist-profile-initial{display:grid;place-items:center;background:#1769d2;color:#fff;font-size:42px;font-weight:800}
+.artist-profile-sheet .eyebrow{text-align:center;font-size:11px;letter-spacing:1.8px;font-weight:800;color:#e3293f}
+.artist-profile-sheet h2{text-align:center;font-size:28px;margin:7px 0 4px}
+.artist-profile-sheet>p{text-align:center;color:#566982;margin:7px 0;font-size:14px}
+.artist-profile-location{font-weight:700;color:#1769d2!important}
+.artist-profile-bio{margin:20px 0;padding:17px;border-radius:14px;background:#f3f7fc;color:#33465f;line-height:1.7;font-size:14px;white-space:pre-wrap}
+.artist-profile-links{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:18px}
+.artist-profile-links a{padding:9px 13px;border-radius:20px;background:#eaf2ff;color:#1457ae;text-decoration:none;font-size:12px;font-weight:750}
+@media(max-width:600px){.artist-profile-sheet{padding:25px 19px}.af-primary-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.af-primary-actions button{min-height:48px}}
