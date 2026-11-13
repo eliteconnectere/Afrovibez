@@ -125,6 +125,10 @@ export default function HomePage() {
   }, [fetchTracks]);
 
   useEffect(() => {
+    if("serviceWorker" in navigator){void navigator.serviceWorker.register("/sw.js").catch(error=>console.warn("AfroVibez offline app shell registration failed:",error));}
+  }, []);
+
+  useEffect(() => {
     try {
       if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkUrl100,artistId:row.artistId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
       setLiked(new Set());
