@@ -121,6 +121,7 @@ export default function HomePage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
+  const [sleepTimerOpen, setSleepTimerOpen] = useState(false);
   const sleepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
   const [followedArtists, setFollowedArtists] = useState<string[]>([]);
@@ -1191,10 +1192,24 @@ export default function HomePage() {
               <button onClick={()=>notify("Cast is not available in this browser yet.","warning","Cast unavailable")}><Radio/><span>Cast</span></button>
               <button className={bassBoostEnabled?"active":""} aria-pressed={bassBoostEnabled} onClick={()=>void toggleBassBoost()}><Volume2/><span>Bass Boost</span></button>
               <button onClick={()=>{setPlayerToolsOpen(false);document.querySelector(".af-audiomod")?.scrollIntoView({behavior:"smooth",block:"center"});}}><Music2/><span>Audiomod</span></button>
-              <button onClick={()=>{if(sleepTimerRef.current)clearTimeout(sleepTimerRef.current);if(sleepTimerMinutes){setSleepTimerMinutes(0);notify("Sleep timer cancelled.");}else{sleepTimerRef.current=setTimeout(()=>{audioRef.current?.pause();setPlaying(false);setSleepTimerMinutes(0);notify("Sleep timer stopped playback.","success");},30*60*1000);setSleepTimerMinutes(30);notify("Sleep timer set for 30 minutes.");}}}><Settings/><span>{sleepTimerMinutes ? "Sleep "+sleepTimerMinutes+"m" : "Sleep Timer"}</span></button>
+              <button className={sleepTimerMinutes?"active":""} onClick={()=>setSleepTimerOpen(true)}><Settings/><span>{sleepTimerMinutes ? "Sleep "+sleepTimerMinutes+"m" : "Sleep Timer"}</span></button>
               <button onClick={()=>notify("HiFi audio is not available for this release yet.","warning","HiFi unavailable")}><Headphones/><span>HiFi</span></button>
             </div>
             <button className="af-tools-close" onClick={()=>setPlayerToolsOpen(false)}>Close</button>
+          </section>
+        </div>
+      )}
+      {sleepTimerOpen && current && (
+        <div className="af-tools-backdrop" role="presentation" onClick={()=>setSleepTimerOpen(false)}>
+          <section className="af-sleep-sheet" role="dialog" aria-modal="true" aria-label="Free sleep timer" onClick={e=>e.stopPropagation()}>
+            <div className="af-sleep-heading"><strong>Sleep Timer</strong><span>Free for every listener. No subscription.</span></div>
+            <div className="af-sleep-options">
+              {[5,10,15,20,30,45,60,90,120].map(minutes=><button key={minutes} className={sleepTimerMinutes===minutes?"selected":""} onClick={()=>{if(sleepTimerRef.current)clearTimeout(sleepTimerRef.current);sleepTimerRef.current=setTimeout(()=>{audioRef.current?.pause();setPlaying(false);setSleepTimerMinutes(0);notify("Sleep timer finished. Playback paused.","success");},minutes*60*1000);setSleepTimerMinutes(minutes);setSleepTimerOpen(false);notify("Sleep timer set for "+minutes+" minutes.");}}>{minutes} min</button>)}
+            </div>
+            <div className="af-sleep-actions">
+              {sleepTimerMinutes>0&&<button onClick={()=>{if(sleepTimerRef.current)clearTimeout(sleepTimerRef.current);sleepTimerRef.current=null;setSleepTimerMinutes(0);setSleepTimerOpen(false);notify("Sleep timer cancelled.");}}>Cancel timer</button>}
+              <button onClick={()=>setSleepTimerOpen(false)}>Close</button>
+            </div>
           </section>
         </div>
       )}
