@@ -49,6 +49,7 @@ export default function HomePage() {
   const [offlineDownloads, setOfflineDownloads] = useState<Set<number>>(new Set());
   const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
   const [offlineBusy, setOfflineBusy] = useState<number | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<{trackId:number;trackName:string;loaded:number;total:number|null;percent:number|null} | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -325,11 +326,39 @@ export default function HomePage() {
   const downloadTrack = async (track:Track) => {
     if(track.allowDownloads===false){notify("The artist has disabled downloads for this release.");return;}
     if(offlineDownloads.has(track.trackId)){notify("This song is already saved for offline listening.");return;}
+    if(offlineBusy!==null){notify("Please wait for the current download to finish.");return;}
     if(!track.audioUrl){notify("The full audio file is not available right now.");return;}
+    if(!navigator.onLine){notify("Connect to the internet before downloading this song.");return;}
     if(!window.confirm(`Save “${track.trackName}” by ${track.artistName} for offline listening? The first download uses internet data. After it is saved, playback on this device can work without mobile data or Wi-Fi.`))return;
     setOfflineBusy(track.trackId);
-    try{const response=await fetch(track.audioUrl);if(!response.ok)throw new Error("Download could not start.");const blob=await response.blob();if(!blob.size)throw new Error("The downloaded audio file was empty.");await saveOfflineBlob(track,blob);setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));setOfflineTracks(prev=>prev.filter(item=>item.trackId!==track.trackId).concat({...track,audioUrl:undefined}));notify("Saved for offline listening on this device.");}
-    catch(error:any){notify(error?.message||"Offline download failed. Please try again.");}finally{setOfflineBusy(null);}
+    setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:0,total:null,percent:null});
+    try{
+      const response=await fetch(track.audioUrl);
+      if(!response.ok)throw new Error("Download could not start.");
+      const headerLength=Number(response.headers.get("content-length"));
+      const total=Number.isFinite(headerLength)&&headerLength>0?headerLength:null;
+      let blob:Blob;
+      if(response.body){
+        const reader=response.body.getReader();
+        const chunks:Uint8Array[]=[];
+        let loaded=0;
+        while(true){
+          const {done,value}=await reader.read();
+          if(done)break;
+          if(value){chunks.push(value);loaded+=value.byteLength;setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded,total,percent:total?Math.min(100,Math.round(loaded/total*100)):null});}
+        }
+        blob=new Blob(chunks,{type:response.headers.get("content-type")||"audio/mpeg"});
+      }else{
+        blob=await response.blob();
+        setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:blob.size,total:blob.size,percent:100});
+      }
+      if(!blob.size)throw new Error("The downloaded audio file was empty.");
+      await saveOfflineBlob(track,blob);
+      setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));
+      setOfflineTracks(prev=>prev.filter(item=>item.trackId!==track.trackId).concat({...track,audioUrl:undefined}));
+      notify("Saved for offline listening on this device.");
+    }catch(error:any){notify(error?.message||"Offline download failed. Please try again.");}
+    finally{setOfflineBusy(null);setDownloadProgress(null);}
   };
   const openArtistProfile = (track:Track) => {if(!track.artistId||!artistProfiles[track.artistId]){notify("Artist details are not available right now.");return;}setArtistProfileOpen(true);};
   const addToQueue = (track:Track, next=false) => {
@@ -386,16 +415,19 @@ export default function HomePage() {
 
   const isExplicit = (track: Track) => track.trackExplicitness?.toLowerCase() === "explicit" || track.contentAdvisoryRating?.toLowerCase() === "explicit";
   const artworkUrl = (track: Track, high: string, low: string) => track.artworkUrl100?.replace("100x100", highQualityArtwork ? high : low);
-  const visibleTracks = [...studioTracks.filter((t) => {
-    const term = query.trim().toLowerCase();
-    return !term || `${t.trackName} ${t.artistName} ${t.primaryGenreName || ""}`.toLowerCase().includes(term);
-  })].filter(
-    (t) => (showExplicitContent || !isExplicit(t)) && (
-      category === "All" ||
-      (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) ||
-      t.artistName.toLowerCase().includes(category.toLowerCase())
-    )
-  );
+  const visibleTracks = [...studioTracks, ...offlineTracks]
+    .filter((track, index, all) => all.findIndex(item => item.trackId === track.trackId) === index)
+    .filter((t) => {
+      const term = query.trim().toLowerCase();
+      return !term || `${t.trackName} ${t.artistName} ${t.primaryGenreName || ""}`.toLowerCase().includes(term);
+    })
+    .filter(
+      (t) => (showExplicitContent || !isExplicit(t)) && (
+        category === "All" ||
+        (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) ||
+        t.artistName.toLowerCase().includes(category.toLowerCase())
+      )
+    );
 
   const submitSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -788,6 +820,22 @@ export default function HomePage() {
         </div>
       )}
 
+      {downloadProgress && (
+        <div role="status" aria-live="polite" style={{position:"fixed",left:16,right:16,bottom:"max(18px, env(safe-area-inset-bottom))",zIndex:9999,maxWidth:520,margin:"0 auto",padding:"13px 15px",borderRadius:16,background:"#101827",color:"#fff",boxShadow:"0 12px 36px rgba(0,0,0,.28)",border:"1px solid rgba(255,255,255,.16)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div aria-hidden="true" style={{width:34,height:34,borderRadius:"50%",border:"3px solid rgba(255,255,255,.22)",borderTopColor:"#65d6a6",animation:"afDownloadSpin .8s linear infinite",flexShrink:0}} />
+            <div style={{minWidth:0,flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Downloading {downloadProgress.trackName}</div>
+              <div style={{fontSize:11,opacity:.78,marginTop:3}}>{downloadProgress.percent===null?"Receiving audio…":downloadProgress.percent+"% · "+(downloadProgress.loaded/1048576).toFixed(1)+" MB"+(downloadProgress.total?" of "+(downloadProgress.total/1048576).toFixed(1)+" MB":"")}</div>
+              <div style={{height:5,background:"rgba(255,255,255,.18)",borderRadius:99,overflow:"hidden",marginTop:8}}>
+                <div style={{height:"100%",width:downloadProgress.percent===null?"35%":downloadProgress.percent+"%",background:"#65d6a6",borderRadius:99,transition:"width .18s ease",animation:downloadProgress.percent===null?"afDownloadPulse 1.2s ease-in-out infinite":undefined}} />
+              </div>
+            </div>
+            <span style={{fontSize:12,fontWeight:800,minWidth:34,textAlign:"right"}}>{downloadProgress.percent===null?"…":downloadProgress.percent+"%"}</span>
+          </div>
+          <style>{'@keyframes afDownloadSpin{to{transform:rotate(360deg)}}@keyframes afDownloadPulse{0%,100%{opacity:.45}50%{opacity:1}}'}</style>
+        </div>
+      )}
       {toast && <div className="af-toast" role="status">{toast}</div>}
       {menuTrack && <div className="track-menu-backdrop" onClick={()=>setMenuTrack(null)}><section className="track-menu-sheet" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
         <div className="sheet-grip"/><button className="sheet-close" onClick={()=>setMenuTrack(null)}><X/></button>
