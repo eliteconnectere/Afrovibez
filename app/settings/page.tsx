@@ -64,8 +64,8 @@ function ToggleRow({ title, description, checked, onChange, label }: { title: st
 
 export default function SettingsPage() {
   const [section, setSection] = useState<Section>("overview");
-  const t = (value:string) => translateText(value, prefs.language);
   const [prefs, setPrefs] = useState<Preferences>(defaults);
+  const t = (value:string) => translateText(value, prefs.language);
   const [profile, setProfile] = useState<Profile>(profileDefaults);
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState("");
@@ -167,23 +167,23 @@ export default function SettingsPage() {
           <div className="account-copy"><span className="panel-eyebrow">YOUR ACCOUNT</span><h2>{profile.displayName.trim() || "Make AfroVibez yours"}</h2><p>{profile.displayName.trim() ? "Your local profile is ready to personalise. It is currently saved only in this browser." : "You can personalise a local profile now. Secure registration and account sync will be enabled when the account service is connected."}</p><span className="account-status"><i/> {profile.displayName.trim() ? "LOCAL PROFILE" : "ACCOUNT REGISTRATION NOT YET ACTIVE"}</span></div>
           <button className="account-disabled" type="button" disabled>Create account <ChevronRight size={16}/></button>
         </section>
-        <div className="settings-section-label">ACCOUNT & PERSONALISATION</div>
+        <div className="settings-section-label">{t("ACCOUNT & PERSONALISATION")}</div>
         <div className="settings-menu-list">
           {sections.slice(0, 2).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span>{item.status && <em>{item.status}</em>}<ChevronRight size={19}/></button>; })}
         </div>
-        <div className="settings-section-label">APP PREFERENCES</div>
+        <div className="settings-section-label">{t("APP PREFERENCES")}</div>
         <div className="settings-menu-list">
-          {sections.slice(2, 6).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{item.title}</strong><small>{item.description}</small></span>{item.status && <em>{item.status}</em>}<ChevronRight size={19}/></button>; })}
+          {sections.slice(2, 6).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span>{item.status && <em>{item.status}</em>}<ChevronRight size={19}/></button>; })}
         </div>
-        <div className="settings-section-label">PRIVACY, STORAGE & SUPPORT</div>
+        <div className="settings-section-label">{t("PRIVACY, STORAGE & SUPPORT")}</div>
         <div className="settings-menu-list">
-          {sections.slice(6).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{item.title}</strong><small>{item.description}</small></span><ChevronRight size={19}/></button>; })}
+          {sections.slice(6).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span><ChevronRight size={19}/></button>; })}
         </div>
       </> : <>
         <button className="settings-detail-back" onClick={() => { setSection("overview"); setNotice(""); }}><ArrowLeft size={16}/> {t("All settings")}</button>
         <section className="settings-detail-card">
           {section === "profile" && <>
-            <div className="settings-detail-heading"><span className="settings-icon"><UserRound size={19}/></span><div><h2>Profile information</h2><p>These details are stored in this browser and are not a public or synced account profile.</p></div></div>
+            <div className="settings-detail-heading"><span className="settings-icon"><UserRound size={19}/></span><div><h2>{t("Profile information")}</h2><p>These details are stored in this browser and are not a public or synced account profile.</p></div></div>
             <label className="settings-field">Display name<input maxLength={50} value={profile.displayName} onChange={e => updateProfile("displayName", e.target.value)} placeholder="How should AfroVibez address you?"/></label>
             <label className="settings-field">Username<input maxLength={30} value={profile.username} onChange={e => updateProfile("username", e.target.value.replace(/[^a-zA-Z0-9_.]/g, ""))} placeholder="Choose a local username"/></label>
             <label className="settings-field">Bio<textarea maxLength={160} rows={3} value={profile.bio} onChange={e => updateProfile("bio", e.target.value)} placeholder="A little about your music taste…"/></label>
@@ -196,7 +196,7 @@ export default function SettingsPage() {
             <div className="privacy-item"><strong>What will become available with accounts</strong><span>Profile photo, email and password management, account recovery, sessions and syncing across devices.</span></div>
           </>}
           {section === "notifications" && <>
-            <div className="settings-detail-heading"><span className="settings-icon"><Bell size={19}/></span><div><h2>Notification preferences</h2><p>Choose your preferred notification types. These choices are saved locally until delivery services are connected.</p></div></div>
+            <div className="settings-detail-heading"><span className="settings-icon"><Bell size={19}/></span><div><h2>{t("Notification preferences")}</h2><p>Choose your preferred notification types. These choices are saved locally until delivery services are connected.</p></div></div>
             <ToggleRow title="Push notifications" description="Allow AfroVibez to send alerts to this device when browser or app notifications are implemented." checked={prefs.pushNotifications} onChange={v => update("pushNotifications",v)} label="Push notifications"/>
             <ToggleRow title="Email notifications" description="Use email for account and product updates after an email address and delivery service are connected." checked={prefs.emailNotifications} onChange={v => update("emailNotifications",v)} label="Email notifications"/>
             <div className="settings-subheading">MUSIC & COMMUNITY UPDATES</div>
