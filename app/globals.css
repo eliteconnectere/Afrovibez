@@ -733,3 +733,22 @@ html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
 .af-sleep-options button{min-height:48px;border:1px solid #d8e5f5;border-radius:13px;background:#f3f7fd;color:#1769d2;font:700 13px 'DM Sans',sans-serif}
 .af-sleep-options button.selected{background:#fff0f2;border-color:#e3293f;color:#e3293f}
 .af-sleep-actions{display:flex;gap:10px;margin-top:18px}.af-sleep-actions button{flex:1;min-height:46px;border:0;border-radius:13px;background:#e3293f;color:#fff;font:700 13px 'DM Sans',sans-serif}
+
+
+/* Discover: compact, playable "Find something new" list */
+.discovery-picks{background:#fff;border:1px solid #e5eaf3;border-radius:18px;padding:22px 24px;margin:0 0 30px;box-shadow:0 8px 28px rgba(24,48,91,.055)}
+.discovery-picks-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.discovery-picks-heading h2{margin:5px 0 0;color:#173b70;font-size:clamp(20px,2.4vw,27px);letter-spacing:-.5px}
+.discovery-see-all{display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#24478e;font-weight:700;cursor:pointer;padding:8px 2px}
+.discovery-picks-list{display:flex;flex-direction:column}
+.discovery-pick{display:flex;align-items:center;gap:12px;min-width:0;padding:10px 0;border-bottom:1px solid #edf0f6}
+.discovery-pick:last-child{border-bottom:0;padding-bottom:2px}
+.discovery-pick-main{display:flex;align-items:center;gap:14px;flex:1;min-width:0;text-align:left;border:0;background:transparent;padding:0;color:inherit;cursor:pointer}
+.discovery-pick-main img{width:64px;height:64px;flex:0 0 64px;object-fit:cover;border-radius:9px;background:#edf0f6}
+.discovery-pick-copy{display:flex;flex-direction:column;min-width:0;gap:3px}
+.discovery-pick-copy strong{font-size:15px;line-height:1.3;color:#172f56;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.discovery-pick-copy>span{font-size:14px;color:#657895;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.discovery-pick-copy small{font-size:12px;color:#52627b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.discovery-pick-more{flex:0 0 38px;color:#50617c}
+.discovery-picks-loading{display:flex;align-items:center;gap:10px;padding:22px 0;color:#63748e}
+@media(max-width:700px){.discovery-picks{padding:17px 15px;margin-bottom:24px;border-radius:14px}.discovery-pick-main img{width:58px;height:58px;flex-basis:58px}.discovery-pick{gap:6px;padding:9px 0}.discovery-pick-copy strong{font-size:14px}.discovery-pick-copy>span{font-size:13px}.discovery-pick-more{flex-basis:34px}}
