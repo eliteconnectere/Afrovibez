@@ -223,7 +223,7 @@ export default function HomePage() {
     audio.addEventListener("ended", () => {
       if (repeatRef.current) {
         audio.currentTime = 0;
-        void audio.play().catch(() => setToast("This preview could not be replayed."));
+        void audio.play().catch(() => setToast("This track could not be replayed."));
         return;
       }
       try {
@@ -244,7 +244,7 @@ export default function HomePage() {
           currentTrackIdRef.current = next.trackId;
           setCurrent(next);
           audio.src = next.previewUrl!;
-          void audio.play().catch(() => { setPlaying(false); setToast("The next preview could not be played."); });
+          void audio.play().catch(() => { setPlaying(false); setToast("The next track could not be played."); });
           return;
         }
       } catch { /* Ignore invalid saved queue data. */ }
@@ -254,7 +254,7 @@ export default function HomePage() {
         currentTrackIdRef.current = next.trackId;
         setCurrent(next);
         audio.src = next.previewUrl!;
-        void audio.play().catch(() => { setPlaying(false); setToast("The next preview could not be played."); });
+        void audio.play().catch(() => { setPlaying(false); setToast("The next track could not be played."); });
         return;
       }
       setPlaying(false);
@@ -426,7 +426,7 @@ export default function HomePage() {
           className="cover-play"
           onClick={() => playTrack(track)}
           disabled={!track.previewUrl}
-          aria-label={track.previewUrl ? (track.source === "studio" ? "Play full release" : "Play preview") : "Playback unavailable"}
+          aria-label={track.previewUrl ? ("Play full release") : "Playback unavailable"}
         >
           {current?.trackId === track.trackId && playing ? (
             <Pause fill="currentColor" size={18} />
@@ -735,7 +735,7 @@ export default function HomePage() {
             <img src={current.artworkUrl100} alt="" />
             <span className="player-track">
               <strong>{current.trackName}</strong>
-              <span>{current.artistName} · {current.source === "studio" ? "Full release" : "Preview"}</span>
+              <span>{current.artistName} · {"Full release"}</span>
             </span>
           </button>
           <div className="player-controls">
@@ -828,7 +828,7 @@ export default function HomePage() {
               <p>Catalogue listing · {current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
               <a href={current.trackViewUrl} target="_blank" rel="noreferrer">Open official catalogue listing <ExternalLink/></a>
             </section>
-            <div className="af-preview-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an Apple Music full track. Full-track playback and licensed downloads are not connected for full tracks."}</div>
+            <div className="af-preview-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an approved full-length AfroVibe release."}</div>
           </section>
         </div>
       )}
