@@ -573,7 +573,7 @@ html[data-theme="dark"] .af-dialog{background:#17213b;color:#f5f6fb;border-color
 /* Interaction polish: consistent transitions, flag geometry and artist profile detail. */
 .country-trigger{gap:7px;overflow:hidden}
 .country-trigger .country-flag-image{display:block;width:25px;height:18px;flex:0 0 25px;object-fit:cover;border-radius:2px;line-height:0;box-shadow:0 0 0 1px rgba(23,59,114,.12)}
-.country-option-flag{display:block;width:25px;height:19px;flex:0 0 25px;object-fit:cover;border-radius:2px;box-shadow:0 0 0 1px rgba(23,59,114,.12)}
+.country-option-flag{display:inline-flex;width:25px;height:22px;flex:0 0 25px;align-items:center;justify-content:center;font-size:19px;line-height:1;object-fit:contain;border-radius:2px}
 .country-picker-list button{min-height:44px}
 .artist-inline-link{display:block;max-width:100%;padding:2px 0;border:0;background:transparent;color:#627a98;text-align:left;font:inherit;font-size:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;transition:color .18s ease,text-decoration-color .18s ease}
 .artist-inline-link:hover,.artist-inline-link:focus-visible{color:#e3293f;text-decoration-color:#e3293f}
