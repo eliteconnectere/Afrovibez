@@ -118,6 +118,17 @@ export default function HomePage() {
   const [expandedCommentThreads, setExpandedCommentThreads] = useState<Set<string>>(new Set());
   const [playerToolsOpen, setPlayerToolsOpen] = useState(false);
   const [bassBoostEnabled, setBassBoostEnabled] = useState(false);
+  const [audioModOpen, setAudioModOpen] = useState(false);
+  const [bassLevel, setBassLevel] = useState(0);
+  const [distortionEnabled, setDistortionEnabled] = useState(false);
+  const [reverbEnabled, setReverbEnabled] = useState(false);
+  const [delayEnabled, setDelayEnabled] = useState(false);
+  const [pitch, setPitch] = useState(0);
+  const [lowPass, setLowPass] = useState(0);
+  const [highPass, setHighPass] = useState(0);
+  const [stayOnAudioMod, setStayOnAudioMod] = useState(false);
+  const [playSpeed, setPlaySpeed] = useState(1);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
@@ -718,33 +729,73 @@ export default function HomePage() {
     void playTrack(playable[nextIndex]);
   };
 
-  const toggleBassBoost = async () => {
+  const openAudioMod = () => {
+    setPlayerToolsOpen(false);
+    setAudioModOpen(true);
+  };
+
+  const ensureAudioGraph = async () => {
     const audio = audioRef.current;
-    if (!audio) return;
-    try {
+    if (!audio) throw new Error("Start a track before changing sound effects.");
+    let context = audioContextRef.current;
+    if (!context) {
       const AudioContextClass = window.AudioContext;
       if (!AudioContextClass) throw new Error("Audio effects are not supported in this browser.");
-      let context = audioContextRef.current;
-      if (!context) {
-        context = new AudioContextClass();
-        const source = context.createMediaElementSource(audio);
-        const filter = context.createBiquadFilter();
-        filter.type = "lowshelf";
-        filter.frequency.value = 120;
-        filter.gain.value = 0;
-        source.connect(filter);
-        filter.connect(context.destination);
-        audioContextRef.current = context;
-        bassFilterRef.current = filter;
-      }
-      await context.resume();
-      const enabled = !bassBoostEnabled;
-      if (bassFilterRef.current) bassFilterRef.current.gain.setTargetAtTime(enabled ? 8 : 0, context.currentTime, 0.08);
-      setBassBoostEnabled(enabled);
-      notify(enabled ? "Bass Boost enabled" : "Bass Boost disabled");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Bass Boost is unavailable for this playback.", "warning", "Audio effect unavailable");
+      context = new AudioContextClass();
+      const source = context.createMediaElementSource(audio);
+      const filter = context.createBiquadFilter();
+      filter.type = "lowshelf";
+      filter.frequency.value = 120;
+      filter.gain.value = bassLevel * 0.12;
+      source.connect(filter);
+      filter.connect(context.destination);
+      audioContextRef.current = context;
+      bassFilterRef.current = filter;
     }
+    await context.resume();
+    return context;
+  };
+
+  const setBass = async (value:number) => {
+    setBassLevel(value);
+    setBassBoostEnabled(value > 0);
+    try {
+      const context = await ensureAudioGraph();
+      bassFilterRef.current?.gain.setTargetAtTime(value * 0.12, context.currentTime, 0.06);
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Bass control is unavailable for this playback.", "warning", "Audio effect unavailable");
+    }
+  };
+
+  const toggleBassBoost = () => {
+    setPlayerToolsOpen(false);
+    setAudioModOpen(true);
+    if (bassLevel === 0) void setBass(65);
+  };
+
+  const resetAudioMod = () => {
+    setBassLevel(0); setBassBoostEnabled(false); setDistortionEnabled(false);
+    setReverbEnabled(false); setDelayEnabled(false); setPitch(0); setLowPass(0); setHighPass(0); setPlaySpeed(1);
+    if (audioRef.current) audioRef.current.playbackRate = 1;
+    const context = audioContextRef.current;
+    if (context && bassFilterRef.current) bassFilterRef.current.gain.setTargetAtTime(0, context.currentTime, 0.06);
+  };
+
+  const chooseAudioPreset = (preset:string) => {
+    const presets:Record<string,{speed:number;bass:number;pitch:number;distort:boolean;reverb:boolean;delay:boolean;low:number;high:number}> = {
+      "Sped Up":{speed:1.25,bass:8,pitch:2,distort:false,reverb:false,delay:false,low:0,high:0},
+      "Nightcore":{speed:1.35,bass:12,pitch:4,distort:false,reverb:true,delay:false,low:0,high:0},
+      "Slowed & Reverb":{speed:.8,bass:18,pitch:-2,distort:false,reverb:true,delay:true,low:0,high:0},
+      "Slowed":{speed:.8,bass:10,pitch:-2,distort:false,reverb:false,delay:false,low:0,high:0},
+      "Daycore":{speed:.85,bass:14,pitch:-3,distort:false,reverb:true,delay:false,low:0,high:0},
+      "Muffled":{speed:1,bass:4,pitch:0,distort:false,reverb:false,delay:false,low:65,high:0}
+    };
+    const p=presets[preset]; if(!p)return;
+    setPlaySpeed(p.speed); setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setPitch(p.pitch);
+    setDistortionEnabled(p.distort); setReverbEnabled(p.reverb); setDelayEnabled(p.delay); setLowPass(p.low); setHighPass(p.high);
+    if(audioRef.current) audioRef.current.playbackRate=p.speed*Math.pow(2,p.pitch/12);
+    void ensureAudioGraph().then(ctx=>bassFilterRef.current?.gain.setTargetAtTime(p.bass*.12,ctx.currentTime,.06)).catch(()=>{});
+    notify(preset+" preset selected");
   };
 
   const applyAudioMode = (mode: typeof audioMode) => {
@@ -1205,12 +1256,37 @@ export default function HomePage() {
           <section className="af-tools-sheet" role="dialog" aria-modal="true" aria-label="Playback tools" onClick={e=>e.stopPropagation()}>
             <div className="af-tools-grid">
               <button onClick={()=>notify("Cast is not available in this browser yet.","warning","Cast unavailable")}><Radio/><span>Cast</span></button>
-              <button className={bassBoostEnabled?"active":""} aria-pressed={bassBoostEnabled} onClick={()=>void toggleBassBoost()}><Volume2/><span>Bass Boost</span></button>
-              <button onClick={()=>{setPlayerToolsOpen(false);document.querySelector(".af-audiomod")?.scrollIntoView({behavior:"smooth",block:"center"});}}><Music2/><span>Audiomod</span></button>
+              <button className={bassBoostEnabled?"active":""} aria-pressed={bassBoostEnabled} onClick={toggleBassBoost}><Volume2/><span>Bass Boost</span></button>
+              <button onClick={openAudioMod}><Music2/><span>Audiomod</span></button>
               <button className={sleepTimerMinutes?"active":""} onClick={()=>setSleepTimerOpen(true)}><Settings/><span>{sleepTimerMinutes ? "Sleep "+sleepTimerMinutes+"m" : "Sleep Timer"}</span></button>
               <button onClick={()=>notify("HiFi audio is not available for this release yet.","warning","HiFi unavailable")}><Headphones/><span>HiFi</span></button>
             </div>
             <button className="af-tools-close" onClick={()=>setPlayerToolsOpen(false)}>Close</button>
+          </section>
+        </div>
+      )}
+      {audioModOpen && current && (
+        <div className="af-tools-backdrop af-audiomod-backdrop" role="presentation" onClick={()=>setAudioModOpen(false)}>
+          <section className="af-audiomod-studio" role="dialog" aria-modal="true" aria-label="Audiomod sound studio" onClick={e=>e.stopPropagation()}>
+            <header className="af-audiomod-header">
+              <button onClick={()=>setAudioModOpen(false)} aria-label="Back to player"><ChevronLeft size={27}/></button>
+              <strong>Audiomod</strong>
+              <button className="af-audiomod-reset" onClick={resetAudioMod}>Reset</button>
+            </header>
+            <div className="af-audiomod-presets">
+              <div className="af-audiomod-label"><strong>Select a preset</strong><label>Stay on <input type="checkbox" checked={stayOnAudioMod} onChange={e=>setStayOnAudioMod(e.target.checked)}/><span/></label></div>
+              <div className="af-preset-grid">
+                {["Sped Up","Nightcore","Slowed & Reverb","Slowed","Daycore","Muffled"].map((name,i)=><button key={name} className={"af-preset af-preset-"+i} onClick={()=>chooseAudioPreset(name)}>{name}</button>)}
+              </div>
+            </div>
+            <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{const v=Number(e.target.value);setPlaySpeed(v);if(audioRef.current)audioRef.current.playbackRate=v*Math.pow(2,pitch/12);}}/><b>{Math.round(playSpeed*100)}%</b></div></div>
+            <div className="af-audiomod-toggle"><strong>Bass Boost</strong><input aria-label="Bass Boost" type="checkbox" checked={bassLevel>0} onChange={e=>void setBass(e.target.checked?65:0)}/></div>
+            <div className="af-audiomod-control"><strong>Bass level</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
+            {([{name:"Distort",value:distortionEnabled,set:setDistortionEnabled},{name:"Reverb",value:reverbEnabled,set:setReverbEnabled},{name:"Delay",value:delayEnabled,set:setDelayEnabled}] as const).map(effect=><div className="af-audiomod-toggle" key={effect.name}><strong>{effect.name}</strong><input type="checkbox" aria-label={effect.name} checked={effect.value} onChange={e=>effect.set(e.target.checked)}/></div>)}
+            <div className="af-audiomod-control"><strong>Pitch</strong><div className="af-range-row"><input type="range" min="-12" max="12" value={pitch} onChange={e=>{const v=Number(e.target.value);setPitch(v);if(audioRef.current)audioRef.current.playbackRate=playSpeed*Math.pow(2,v/12);}}/><b>{pitch}</b></div></div>
+            <div className="af-audiomod-control"><strong>Low Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={lowPass} onChange={e=>setLowPass(Number(e.target.value))}/><b>{lowPass}</b></div></div>
+            <div className="af-audiomod-control"><strong>High Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={highPass} onChange={e=>setHighPass(Number(e.target.value))}/><b>{highPass}</b></div></div>
+            <button className="af-audiomod-share" onClick={()=>{setAudioModOpen(false);notify("Your sound settings are applied to the current track.");}}>Done</button>
           </section>
         </div>
       )}
