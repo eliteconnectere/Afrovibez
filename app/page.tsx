@@ -26,7 +26,7 @@ type Track = {
 
 type View = "discover" | "charts" | "library" | "queue";
 
-const categories = ["All", "Afrobeats", "Afropop", "Amapiano", "Highlife", "Gospel", "Hip-Hop"];
+const categories = ["All", "Afrobeats", "Afropop", "Afro-fusion", "Afroswing", "Amapiano", "Highlife", "Bongo Flava", "Hiplife", "Gqom", "Kuduro", "Kizomba", "Soukous", "Ndombolo", "Mbalax", "Fuji", "Juju", "Apala", "Gospel", "Hip-Hop", "Drill", "R&B / Soul", "Dancehall", "Reggae", "Zouk", "Makossa", "Gengetone", "Singeli", "Jazz", "Electronic", "Pop", "Traditional"];
 
 const sectionsConfig: { id: string; title: string; subtitle: string; term: string }[] = [];
 
