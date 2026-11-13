@@ -110,6 +110,10 @@ export default function HomePage() {
   const [commentReactions, setCommentReactions] = useState<Record<string,{likes:number;dislikes:number}>>({});
   const [expandedCommentThreads, setExpandedCommentThreads] = useState<Set<string>>(new Set());
   const [playerToolsOpen, setPlayerToolsOpen] = useState(false);
+  const [bassBoostEnabled, setBassBoostEnabled] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
   const sleepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
@@ -474,6 +478,7 @@ export default function HomePage() {
     const offlineBlob=await getOfflineBlob(track.trackId);
     if(!offlineBlob&&!track.audioUrl){notify("This song is not saved offline. Connect to the internet to play it.");return;}
     if(!offlineBlob&&!navigator.onLine){notify("This song is not saved offline. Connect to the internet to play or download it.");return;}
+    audio.crossOrigin = "anonymous";
     if(offlineBlob){activeObjectUrlRef.current=URL.createObjectURL(offlineBlob);audio.src=activeObjectUrlRef.current;}else{audio.src=track.audioUrl;}
     let savedPreferences: Record<string, unknown> = {};
     try { savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}"); } catch {}
@@ -670,6 +675,36 @@ export default function HomePage() {
     const index = playable.findIndex((t) => t.trackId === current.trackId);
     const nextIndex = index < 0 ? (direction > 0 ? 0 : playable.length - 1) : (index + direction + playable.length) % playable.length;
     void playTrack(playable[nextIndex]);
+  };
+
+  const toggleBassBoost = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    try {
+      const AudioContextClass = window.AudioContext;
+      if (!AudioContextClass) throw new Error("Audio effects are not supported in this browser.");
+      let context = audioContextRef.current;
+      if (!context) {
+        context = new AudioContextClass();
+        const source = context.createMediaElementSource(audio);
+        const filter = context.createBiquadFilter();
+        filter.type = "lowshelf";
+        filter.frequency.value = 120;
+        filter.gain.value = 0;
+        source.connect(filter);
+        filter.connect(context.destination);
+        audioContextRef.current = context;
+        audioSourceRef.current = source;
+        bassFilterRef.current = filter;
+      }
+      await context.resume();
+      const enabled = !bassBoostEnabled;
+      if (bassFilterRef.current) bassFilterRef.current.gain.setTargetAtTime(enabled ? 8 : 0, context.currentTime, 0.08);
+      setBassBoostEnabled(enabled);
+      notify(enabled ? "Bass Boost enabled" : "Bass Boost disabled");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Bass Boost is unavailable for this playback.", "warning", "Audio effect unavailable");
+    }
   };
 
   const applyAudioMode = (mode: typeof audioMode) => {
@@ -1115,7 +1150,7 @@ export default function HomePage() {
           <section className="af-tools-sheet" role="dialog" aria-modal="true" aria-label="Playback tools" onClick={e=>e.stopPropagation()}>
             <div className="af-tools-grid">
               <button onClick={()=>notify("Cast is not available in this browser yet.","warning","Cast unavailable")}><Radio/><span>Cast</span></button>
-              <button onClick={()=>notify("Bass Boost needs the audio equalizer engine; it is not enabled yet.","warning","Bass Boost unavailable")}><Volume2/><span>Bass Boost</span></button>
+              <button className={bassBoostEnabled?"active":""} aria-pressed={bassBoostEnabled} onClick={()=>void toggleBassBoost()}><Volume2/><span>Bass Boost</span></button>
               <button onClick={()=>{setPlayerToolsOpen(false);document.querySelector(".af-audiomod")?.scrollIntoView({behavior:"smooth",block:"center"});}}><Music2/><span>Audiomod</span></button>
               <button onClick={()=>{if(sleepTimerRef.current)clearTimeout(sleepTimerRef.current);if(sleepTimerMinutes){setSleepTimerMinutes(0);notify("Sleep timer cancelled.");}else{sleepTimerRef.current=setTimeout(()=>{audioRef.current?.pause();setPlaying(false);setSleepTimerMinutes(0);notify("Sleep timer stopped playback.","success");},30*60*1000);setSleepTimerMinutes(30);notify("Sleep timer set for 30 minutes.");}}}><Settings/><span>{sleepTimerMinutes ? "Sleep "+sleepTimerMinutes+"m" : "Sleep Timer"}</span></button>
               <button onClick={()=>notify("HiFi audio is not available for this release yet.","warning","HiFi unavailable")}><Headphones/><span>HiFi</span></button>
