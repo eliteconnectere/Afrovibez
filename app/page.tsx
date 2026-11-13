@@ -14,12 +14,11 @@ type Track = {
   artistName: string;
   collectionName?: string;
   artworkUrl100: string;
-  previewUrl?: string;
+  audioUrl?: string;
   trackViewUrl: string;
   primaryGenreName?: string;
   trackExplicitness?: string;
   contentAdvisoryRating?: string;
-  source?: "studio" | "apple";
 };
 
 type View = "discover" | "charts" | "library" | "queue";
@@ -182,7 +181,7 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, previewUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean", source: "studio" } as Track;
+          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
@@ -223,7 +222,7 @@ export default function HomePage() {
           return;
         }
         const savedQueue = JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[];
-        const nextQueue = savedQueue.filter(t => t.previewUrl);
+        const nextQueue = savedQueue.filter(t => t.audioUrl);
         if (nextQueue.length) {
           const nextIndex = shuffleRef.current ? Math.floor(Math.random() * nextQueue.length) : 0;
           const next = nextQueue[nextIndex];
@@ -232,17 +231,17 @@ export default function HomePage() {
           localStorage.setItem("afrovibez.queue.v1", JSON.stringify(remaining));
           currentTrackIdRef.current = next.trackId;
           setCurrent(next);
-          audio.src = next.previewUrl!;
+          audio.src = next.audioUrl!;
           void audio.play().catch(() => { setPlaying(false); setToast("The next track could not be played."); });
           return;
         }
       } catch { /* Ignore invalid saved queue data. */ }
-      const available = catalogueRef.current.filter(track => track.previewUrl && track.trackId !== currentTrackIdRef.current);
+      const available = catalogueRef.current.filter(track => track.audioUrl && track.trackId !== currentTrackIdRef.current);
       if (available.length) {
         const next = shuffleRef.current ? available[Math.floor(Math.random() * available.length)] : available[0];
         currentTrackIdRef.current = next.trackId;
         setCurrent(next);
-        audio.src = next.previewUrl!;
+        audio.src = next.audioUrl!;
         void audio.play().catch(() => { setPlaying(false); setToast("The next track could not be played."); });
         return;
       }
@@ -264,7 +263,7 @@ export default function HomePage() {
   }, []);
 
   const playTrack = async (track: Track) => {
-    if (!track.previewUrl) return;
+    if (!track.audioUrl) return;
     const audio = audioRef.current;
     if (!audio) return;
     if (current?.trackId === track.trackId && !audio.paused) {
@@ -276,7 +275,7 @@ export default function HomePage() {
       return;
     }
     audio.pause();
-    audio.src = track.previewUrl;
+    audio.src = track.audioUrl;
     let savedPreferences: Record<string, unknown> = {};
     try { savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}"); } catch {}
     audio.volume = Math.max(0, Math.min(100, Number(savedPreferences.volume ?? 85))) / 100;
@@ -372,7 +371,7 @@ export default function HomePage() {
   const playAdjacent = (direction: -1 | 1) => {
     if (!current) return;
     const playable = studioTracks
-      .filter((t, index, all) => !!t.previewUrl && all.findIndex(x => x.trackId === t.trackId) === index);
+      .filter((t, index, all) => !!t.audioUrl && all.findIndex(x => x.trackId === t.trackId) === index);
     if (!playable.length) return;
     if (shuffleRef.current && direction > 0) {
       const choices = playable.filter(t => t.trackId !== current.trackId);
@@ -414,8 +413,8 @@ export default function HomePage() {
         <button
           className="cover-play"
           onClick={() => playTrack(track)}
-          disabled={!track.previewUrl}
-          aria-label={track.previewUrl ? ("Play full release") : "Playback unavailable"}
+          disabled={!track.audioUrl}
+          aria-label={track.audioUrl ? ("Play full release") : "Playback unavailable"}
         >
           {current?.trackId === track.trackId && playing ? (
             <Pause fill="currentColor" size={18} />
@@ -462,7 +461,7 @@ export default function HomePage() {
                 <button
                   className="row-play"
                   onClick={() => playTrack(track)}
-                  disabled={!track.previewUrl}
+                  disabled={!track.audioUrl}
                   aria-label="Play"
                 >
                   {current?.trackId === track.trackId && playing ? (
@@ -551,7 +550,7 @@ export default function HomePage() {
                 <div className="hero-copy">
                   <div className="eyebrow"><span /> THE SOUND OF AFRICA</div>
                   <h1>Feel the rhythm.<br /><em>Find your vibe.</em></h1>
-                  <p>Discover music uploaded and approved by artists on AfroVibe Studio. Listen to complete releases, not short previews.</p>
+                  <p>Discover music uploaded and approved by artists on AfroVibe Studio. Listen to complete songs and releases.</p>
                   <a className="hero-button" href="#browse">Explore music <span>↗</span></a>
                 </div>
                 <div className="hero-art" aria-hidden="true">
@@ -632,7 +631,7 @@ export default function HomePage() {
           {view === "charts" && (
             <section className="charts-view">
               <div className="charts-header">
-                <div className="eyebrow dark">NIGERIA</div>
+                <div className="eyebrow dark">AFRICA</div>
                 <h1>Top Charts</h1>
                 <p>Official AfroVibe releases will appear here as listening data becomes available.</p>
               </div>
@@ -648,7 +647,7 @@ export default function HomePage() {
                         <button
                           className="chart-play"
                           onClick={() => playTrack(track)}
-                          disabled={!track.previewUrl}
+                          disabled={!track.audioUrl}
                         >
                           {current?.trackId === track.trackId && playing ? (
                             <Pause fill="currentColor" size={14} />
@@ -673,8 +672,8 @@ export default function HomePage() {
               ) : (
                 <div className="empty-state">
                   <TrendingUp size={28} />
-                  <strong>Charts unavailable</strong>
-                  <span>Try again in a moment.</span>
+                  <strong>No chart data yet</strong>
+                  <span>AfroVibe charts will appear as real listening activity is collected.</span>
                 </div>
               )}
             </section>
@@ -761,7 +760,7 @@ export default function HomePage() {
           <button onClick={()=>{toggleLike(menuTrack.trackId);setMenuTrack(null);}}><Heart/> {liked.has(menuTrack.trackId)?"Unlike":"Like"}</button>
           <button onClick={()=>addToPlaylist(menuTrack)}><Plus/> Add to Playlist</button>
           <button onClick={()=>{setQuery(menuTrack.artistName);setInput(menuTrack.artistName);setView("discover");setMenuTrack(null);}}><Radio/> See similar songs</button><button onClick={()=>{setQuery(menuTrack.artistName);setInput(menuTrack.artistName);setView("discover");setMenuTrack(null);}}><Album/> More from {menuTrack.artistName}</button>
-          <button onClick={()=>{window.open(menuTrack.trackViewUrl,"_blank","noopener,noreferrer");setMenuTrack(null);}}><Info/> More Info / Catalogue listing</button>
+          
         </div><p className="local-only-note">Your likes, follows, playlists and queue are saved on this device. Shared social feeds, comments and licensed downloads need connected services.</p>
       </section></div>}
       {current && playerOpen && (
@@ -808,14 +807,13 @@ export default function HomePage() {
               </div>
             </div>
             <div className="af-repeat-row">
-              <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat preview enabled":"Repeat disabled");}} aria-pressed={repeatEnabled}><Repeat/> Repeat {repeatEnabled?"On":"Off"}</button>
+              <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat enabled":"Repeat disabled");}} aria-pressed={repeatEnabled}><Repeat/> Repeat {repeatEnabled?"On":"Off"}</button>
               <button onClick={()=>{setView("queue");setPlayerOpen(false);}}><ListMusic/> Queue ({queue.length})</button>
             </div>
             <section className="af-artist-card">
               <div className="af-section-title"><strong>Artist</strong><button onClick={()=>{setInput(current.artistName);setQuery(current.artistName);setView("discover");setPlayerOpen(false);}}>See catalogue <ExternalLink/></button></div>
               <div className="af-artist-row"><div className="af-artist-avatar">{current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong><button onClick={()=>{setFollowedArtists(a=>a.includes(current.artistName)?a.filter(x=>x!==current.artistName):[...a,current.artistName]);notify(followedArtists.includes(current.artistName)?"Artist unfollowed":"Artist followed");}}>{followedArtists.includes(current.artistName)?"FOLLOWING":"FOLLOW"}</button></div>
-              <p>Catalogue listing · {current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
-              <a href={current.trackViewUrl} target="_blank" rel="noreferrer">Open official catalogue listing <ExternalLink/></a>
+              <p>{current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
             </section>
             <div className="af-preview-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an approved full-length AfroVibe release."}</div>
           </section>
