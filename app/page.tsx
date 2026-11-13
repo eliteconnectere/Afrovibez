@@ -173,6 +173,8 @@ export default function HomePage() {
       }
     } catch (error) {
       console.warn("AfroVibez listener sign-in is not available yet:", error);
+      setFollowedArtistIds([]);
+      setFollowedArtists([]);
     }
     try {
       const response = await fetch(`${base}/rest/v1/rpc/get_artist_follow_counts`, {
@@ -211,7 +213,7 @@ export default function HomePage() {
       const already=followedArtistIds.includes(artistId);
       const response=already
         ? await fetch(`${base}/rest/v1/studio_artist_follows?artist_id=eq.${artistId}&follower_id=eq.${user.id}`,{method:"DELETE",headers:{apikey:key,Authorization:`Bearer ${token}`}})
-        : await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({artist_id:artistId,follower_id:user.id})});
+        : await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},body:JSON.stringify({artist_id:artistId,follower_id:user.id})});
       if(!response.ok)throw new Error(await response.text()||"The follow could not be saved.");
       setFollowedArtistIds(ids=>already?ids.filter(id=>id!==artistId):[...ids,artistId]);
       setFollowedArtists(names=>already?names.filter(name=>name!==stageName):names.includes(stageName)?names:[...names,stageName]);
@@ -758,13 +760,13 @@ export default function HomePage() {
             className={"nav-item " + (view === "discover" ? "active" : "")}
             onClick={() => { setView("discover"); setMobileNav(false); }}
           >
-            <Home size={19} /> Discover
+            <Home size={19} /> {t("Discover")}
           </button>
           <button
             className={"nav-item " + (view === "charts" ? "active" : "")}
             onClick={() => { setView("charts"); setMobileNav(false); }}
           >
-            <BarChart3 size={19} /> Charts
+            <BarChart3 size={19} /> {t("Charts")}
           </button>
           <button className={"nav-item " + (view === "search" ? "active" : "")} onClick={() => { setView("search"); setMobileNav(false); }}><Search size={19}/> {t("Search")}</button>
           <button className={"nav-item " + (view === "feed" ? "active" : "")} onClick={() => { setView("feed"); setMobileNav(false); }}><Radio size={19}/> {t("Feed")}</button>
@@ -772,11 +774,11 @@ export default function HomePage() {
             className={"nav-item " + (view === "library" ? "active" : "")}
             onClick={() => { setView("library"); setMobileNav(false); }}
           >
-            <Library size={19} /> Your library
+            <Library size={19} /> {t("Your library")}
           </button>
           <button className={"nav-item " + (view==="queue"?"active":"")} onClick={()=>{setView("queue");setMobileNav(false);}}><ListOrdered size={19}/> {t("Your queue")}</button>
           <a className="nav-item" href="/settings" onClick={() => setMobileNav(false)}>
-            <Settings size={19} /> Settings
+            <Settings size={19} /> {t("Settings")}
           </a>
         </nav>
         <div className="sidebar-note">
