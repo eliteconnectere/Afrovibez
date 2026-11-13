@@ -328,7 +328,7 @@ export default function HomePage() {
     if(!track.audioUrl){notify("The full audio file is not available right now.");return;}
     if(!window.confirm(`Save “${track.trackName}” by ${track.artistName} for offline listening? The first download uses internet data. After it is saved, playback on this device can work without mobile data or Wi-Fi.`))return;
     setOfflineBusy(track.trackId);
-    try{const response=await fetch(track.audioUrl);if(!response.ok)throw new Error("Download could not start.");const blob=await response.blob();if(!blob.size)throw new Error("The downloaded audio file was empty.");await saveOfflineBlob(track,blob);setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));notify("Saved for offline listening on this device.");}
+    try{const response=await fetch(track.audioUrl);if(!response.ok)throw new Error("Download could not start.");const blob=await response.blob();if(!blob.size)throw new Error("The downloaded audio file was empty.");await saveOfflineBlob(track,blob);setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));setOfflineTracks(prev=>prev.filter(item=>item.trackId!==track.trackId).concat({...track,audioUrl:undefined}));notify("Saved for offline listening on this device.");}
     catch(error:any){notify(error?.message||"Offline download failed. Please try again.");}finally{setOfflineBusy(null);}
   };
   const openArtistProfile = (track:Track) => {if(!track.artistId||!artistProfiles[track.artistId]){notify("Artist details are not available right now.");return;}setArtistProfileOpen(true);};
@@ -452,7 +452,7 @@ export default function HomePage() {
           className="cover-play"
           onClick={() => playTrack(track)}
           disabled={!track.audioUrl && !offlineDownloads.has(track.trackId)}
-          aria-label={track.audioUrl ? ("Play full release") : "Playback unavailable"}
+          aria-label={track.audioUrl || offlineDownloads.has(track.trackId) ? ("Play full release") : "Playback unavailable"}
         >
           {current?.trackId === track.trackId && playing ? (
             <Pause fill="currentColor" size={18} />
@@ -744,7 +744,7 @@ export default function HomePage() {
                   <div className="callout-icon"><ListMusic size={23} /></div>
                   <div>
                     <strong>Nothing saved yet</strong>
-                    <p>Tap the heart on any track to start building your library. Full accounts, playlists and downloads will arrive when the backend is connected.</p>
+                    <p>Tap the heart on any track to start building your library. Offline downloads saved on this device appear above.</p>
                   </div>
                   <span className="coming-label">LOCAL ONLY</span>
                 </div>
