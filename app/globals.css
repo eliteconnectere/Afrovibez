@@ -752,3 +752,15 @@ html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
 .discovery-pick-more{flex:0 0 38px;color:#50617c}
 .discovery-picks-loading{display:flex;align-items:center;gap:10px;padding:22px 0;color:#63748e}
 @media(max-width:700px){.discovery-picks{padding:17px 15px;margin-bottom:24px;border-radius:14px}.discovery-pick-main img{width:58px;height:58px;flex-basis:58px}.discovery-pick{gap:6px;padding:9px 0}.discovery-pick-copy strong{font-size:14px}.discovery-pick-copy>span{font-size:13px}.discovery-pick-more{flex-basis:34px}}
+
+
+/* Settings overview: clean grouped list inspired by native music-app settings */
+.settings-reference-list{max-width:900px;margin:8px auto 0}
+.settings-reference-group{margin:0 0 27px}
+.settings-reference-group h2{margin:0 0 8px;color:#e52b45;font-size:13px;font-weight:850;letter-spacing:.02em}
+.settings-reference-group button{width:100%;min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 2px;border:0;border-bottom:1px solid #e7eaf0;background:transparent;color:#193b70;text-align:left;font-size:17px;font-weight:520;cursor:pointer}
+.settings-reference-group button svg{flex:0 0 20px;color:#9299a8}
+.settings-reference-group button:hover{color:#e52b45}
+html[data-theme="dark"] .settings-reference-group button{color:#f5f6fb;border-bottom-color:#293553}
+html[data-theme="dark"] .settings-reference-group h2{color:#ff5368}
+@media(max-width:720px){.settings-reference-list{margin-top:0}.settings-reference-group{margin-bottom:23px}.settings-reference-group h2{font-size:12px}.settings-reference-group button{min-height:59px;font-size:16px;padding:12px 1px}}
