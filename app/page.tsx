@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { translateText } from "../lib/i18n";
+import { ensureListenerAccessToken } from "../lib/listener-auth";
 import {
   Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward,
   Music2, Menu, X, ListMusic, ExternalLink, LoaderCircle, Settings, TrendingUp,
@@ -59,6 +61,8 @@ const countryOptions = countryCodes.map(code => ({ code, name: countryNames.of(c
 
 export default function HomePage() {
   const [view, setView] = useState<View>("discover");
+  const [language, setLanguage] = useState("en");
+  const t = (value: string) => translateText(value, language);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [studioTracks, setStudioTracks] = useState<Track[]>([]);
   const [sectionTracks, setSectionTracks] = useState<Record<string, Track[]>>({});
@@ -99,6 +103,8 @@ export default function HomePage() {
   const [queue, setQueue] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
   const [followedArtists, setFollowedArtists] = useState<string[]>([]);
+  const [followedArtistIds, setFollowedArtistIds] = useState<string[]>([]);
+  const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<{title:string;message:string;tone:"success"|"error"|"warning"|"info"} | null>(null);
   const [appDialog, setAppDialog] = useState<{title:string;message:string;confirmLabel:string;tone:"danger"|"primary";input?:boolean;onConfirm:(value?:string)=>void} | null>(null);
   const [dialogInput, setDialogInput] = useState("");
@@ -141,6 +147,81 @@ export default function HomePage() {
         body: JSON.stringify({ p_track_id: trackUuid, p_listener_key: getListenerKey(), p_listened_seconds: Math.max(30, Math.floor(seconds)) })
       });
     } catch (e) { console.warn("AfroVibez stream metric was not recorded:", e); }
+  };
+
+  const loadArtistSocial = async (artists: any[]) => {
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const ids = artists.map((artist:any)=>artist.id).filter(Boolean);
+    if (!base || !key || !ids.length) return;
+    let token = key;
+    let signedIn = false;
+    try {
+      token = await ensureListenerAccessToken();
+      signedIn = true;
+      const userResponse = await fetch(`${base}/auth/v1/user`, { headers: { apikey:key, Authorization:`Bearer ${token}` } });
+      if (userResponse.ok) {
+        const user = await userResponse.json();
+        const oldNames = JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]");
+        const legacyIds = artists.filter((artist:any)=>Array.isArray(oldNames)&&oldNames.includes(artist.stage_name)).map((artist:any)=>artist.id).filter((id:string)=>id!==undefined);
+        if (user.id && legacyIds.length) {
+          await fetch(`${base}/rest/v1/studio_artist_follows`, {
+            method:"POST", headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},
+            body:JSON.stringify(legacyIds.map((artist_id:string)=>({artist_id,follower_id:user.id})))
+          });
+        }
+      }
+    } catch (error) {
+      console.warn("AfroVibez listener sign-in is not available yet:", error);
+    }
+    try {
+      const response = await fetch(`${base}/rest/v1/rpc/get_artist_follow_counts`, {
+        method:"POST", headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+        body:JSON.stringify({p_artist_ids:ids})
+      });
+      if (!response.ok) throw new Error(await response.text());
+      const rows = await response.json();
+      const counts:Record<string,number>={};
+      const following:string[]=[];
+      for (const row of rows||[]) {
+        counts[row.artist_id]=Number(row.follower_count||0);
+        if (signedIn && row.is_following) following.push(row.artist_id);
+      }
+      setFollowerCounts(current=>({...current,...counts}));
+      if (signedIn) {
+        setFollowedArtistIds(following);
+        const names=artists.filter((artist:any)=>following.includes(artist.id)).map((artist:any)=>artist.stage_name);
+        setFollowedArtists(names);
+        localStorage.setItem("afrovibez.follows.v1",JSON.stringify(names));
+      }
+    } catch (error) {
+      console.warn("AfroVibez follower totals could not be loaded:",error);
+    }
+  };
+
+  const toggleArtistFollow = async (artistId:string, stageName:string) => {
+    const base=process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if(!base||!key){notify("Artist follows are not configured yet.","error");return;}
+    try {
+      const token=await ensureListenerAccessToken();
+      const userResponse=await fetch(`${base}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
+      if(!userResponse.ok)throw new Error("Could not verify your listener account. Please try again.");
+      const user=await userResponse.json();
+      const already=followedArtistIds.includes(artistId);
+      const response=already
+        ? await fetch(`${base}/rest/v1/studio_artist_follows?artist_id=eq.${artistId}&follower_id=eq.${user.id}`,{method:"DELETE",headers:{apikey:key,Authorization:`Bearer ${token}`}})
+        : await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({artist_id:artistId,follower_id:user.id})});
+      if(!response.ok)throw new Error(await response.text()||"The follow could not be saved.");
+      setFollowedArtistIds(ids=>already?ids.filter(id=>id!==artistId):[...ids,artistId]);
+      setFollowedArtists(names=>already?names.filter(name=>name!==stageName):names.includes(stageName)?names:[...names,stageName]);
+      setFollowerCounts(counts=>({...counts,[artistId]:Math.max(0,(counts[artistId]||0)+(already?-1:1))}));
+      const names=JSON.parse(localStorage.getItem("afrovibez.follows.v1")||"[]");
+      localStorage.setItem("afrovibez.follows.v1",JSON.stringify(already?names.filter((name:string)=>name!==stageName):[...new Set([...names,stageName])]));
+      notify(already?"Artist unfollowed":"Artist followed","success");
+    } catch(error:any) {
+      notify(error?.message||"Could not update your follow. Enable Anonymous Sign-Ins in Supabase Auth settings and try again.","error");
+    }
   };
 
   const OFFLINE_DB = "afrovibez-offline-v1";
@@ -200,6 +281,9 @@ export default function HomePage() {
   useEffect(() => {
     try {
       if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkUrl100,artistId:row.artistId,studioTrackId:row.studioTrackId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
+      const savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
+      const savedLanguage = String(savedPreferences.language || "en").toLowerCase();
+      setLanguage(savedLanguage === "french" ? "fr" : savedLanguage === "spanish" ? "es" : savedLanguage === "portuguese" ? "pt" : savedLanguage);
       const savedLikes = JSON.parse(localStorage.getItem("afrovibez.likes.v1") || "[]");
       setLiked(new Set(Array.isArray(savedLikes) ? savedLikes.filter((id): id is number => Number.isFinite(id)) : []));
       setQueue((JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[]).filter(t => t.source === "studio"));
@@ -280,6 +364,7 @@ export default function HomePage() {
         const profileMap:Record<string,any>={};
         await Promise.all((artistRows||[]).map(async(artist:any)=>{let avatarUrl="";if(artist.avatar_path){const path=artist.avatar_path.split("/").map(encodeURIComponent).join("/");const response=await fetch(`${base}/storage/v1/object/sign/studio-artwork/${path}`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({expiresIn:3600})});if(response.ok){const data=await response.json();avatarUrl=data.signedURL?.startsWith("http")?data.signedURL:`${base}/storage/v1${data.signedURL||""}`;}}profileMap[artist.id]={...artist,avatarUrl};}));
         setArtistProfiles(profileMap);
+        void loadArtistSocial(artistRows);
         const signed = await Promise.all((rows || []).map(async (row: any) => {
           const sign = async (bucket: string, path: string) => {
             const encoded = path.split("/").map(encodeURIComponent).join("/");
@@ -665,7 +750,7 @@ export default function HomePage() {
           <span>AFRO<span className="brand-accent">VIBEZ</span></span>
           <button className="close-nav" onClick={() => setMobileNav(false)} aria-label="Close menu"><X /></button>
         </div>
-        <div className="nav-label">MENU</div>
+        <div className="nav-label">{t("MENU")}</div>
         <nav>
           <button
             className={"nav-item " + (view === "discover" ? "active" : "")}
@@ -679,27 +764,27 @@ export default function HomePage() {
           >
             <BarChart3 size={19} /> Charts
           </button>
-          <button className={"nav-item " + (view === "search" ? "active" : "")} onClick={() => { setView("search"); setMobileNav(false); }}><Search size={19}/> Search</button>
-          <button className={"nav-item " + (view === "feed" ? "active" : "")} onClick={() => { setView("feed"); setMobileNav(false); }}><Radio size={19}/> Feed</button>
+          <button className={"nav-item " + (view === "search" ? "active" : "")} onClick={() => { setView("search"); setMobileNav(false); }}><Search size={19}/> {t("Search")}</button>
+          <button className={"nav-item " + (view === "feed" ? "active" : "")} onClick={() => { setView("feed"); setMobileNav(false); }}><Radio size={19}/> {t("Feed")}</button>
           <button
             className={"nav-item " + (view === "library" ? "active" : "")}
             onClick={() => { setView("library"); setMobileNav(false); }}
           >
             <Library size={19} /> Your library
           </button>
-          <button className={"nav-item " + (view==="queue"?"active":"")} onClick={()=>{setView("queue");setMobileNav(false);}}><ListOrdered size={19}/> Your queue</button>
+          <button className={"nav-item " + (view==="queue"?"active":"")} onClick={()=>{setView("queue");setMobileNav(false);}}><ListOrdered size={19}/> {t("Your queue")}</button>
           <a className="nav-item" href="/settings" onClick={() => setMobileNav(false)}>
             <Settings size={19} /> Settings
           </a>
         </nav>
         <div className="sidebar-note">
           <div className="note-icon"><Headphones size={21} /></div>
-          <strong>Your sound. Your roots.</strong>
-          <p>Discover full songs uploaded by AfroVibe artists.</p>
+          <strong>{t("Your sound. Your roots.")}</strong>
+          <p>{t("Discover full songs uploaded by AfroVibe artists.")}</p>
         </div>
         <div className="sidebar-foot">
-          Only approved artist uploads appear here.<br />
-          Full-track playback from AfroVibe Studio.
+          {t("Only approved artist uploads appear here.")}<br />
+          {t("Full-track playback from AfroVibe Studio.")}
         </div>
       </aside>
 
@@ -862,7 +947,7 @@ export default function HomePage() {
 
           {view === "feed" && (
             <section className="library-view feed-view">
-              <div className="section-heading"><div><div className="eyebrow dark">YOUR MUSIC COMMUNITY</div><h2>Following feed</h2><p>New releases from artists you follow.</p></div></div>
+              <div className="section-heading"><div><div className="eyebrow dark">{t("Your music community")}</div><h2>{t("Following feed")}</h2><p>{t("New releases from artists you follow.")}</p></div></div>
               {followedArtists.length ? <><div className="feed-following-note">Following {followedArtists.length} {followedArtists.length===1?"artist":"artists"}: {followedArtists.join(", ")}</div>{studioTracks.filter(t=>followedArtists.includes(t.artistName)).length ? <div className="track-grid">{studioTracks.filter(t=>followedArtists.includes(t.artistName)).map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div> : <div className="empty-state"><Radio size={28}/><strong>No new releases from your artists yet</strong><span>When artists you follow publish music, it will appear here.</span></div>}</> : <div className="bottom-callout"><div className="callout-icon"><Radio size={23}/></div><div><strong>Your feed starts with artists you follow</strong><p>Open a song’s More menu or artist profile and choose Follow. Their new approved releases will appear here.</p></div><button className="feed-discover-button" onClick={()=>setView("discover")}>Discover artists</button></div>}
             </section>
           )}
@@ -961,7 +1046,7 @@ export default function HomePage() {
           <div className="af-dialog-actions"><button type="button" className="af-dialog-cancel" onClick={()=>setAppDialog(null)}>Cancel</button><button type="button" className={`af-dialog-confirm ${appDialog.tone}`} onClick={()=>{const action=appDialog.onConfirm;const value=dialogInput;setAppDialog(null);action(value);}}>{appDialog.confirmLabel}</button></div>
         </section>
       </div>}
-      {countryPickerOpen && <div className="country-picker-backdrop" role="presentation" onClick={()=>setCountryPickerOpen(false)}><section className="country-picker" role="dialog" aria-modal="true" aria-label="Select music country" onClick={e=>e.stopPropagation()}><header><div><small>EXPLORE MUSIC BY REGION</small><h2>Select a country</h2></div><button type="button" onClick={()=>setCountryPickerOpen(false)} aria-label="Close country selector"><X size={20}/></button></header><input className="country-picker-search" value={countrySearch} onChange={e=>setCountrySearch(e.target.value)} placeholder="Search countries…" aria-label="Search countries"/><div className="country-picker-list">{countryOptions.filter(country=>country.name.toLowerCase().includes(countrySearch.trim().toLowerCase())).map(country=><button type="button" key={country.code} className={selectedCountry===country.code?"selected":""} onClick={()=>{setSelectedCountry(country.code);localStorage.setItem("afrovibez.explore-country.v1",country.code);setCountryPickerOpen(false);notify(`Music region set to ${country.name}.`);}}><img className="country-option-flag" src={country.flagUrl} alt="" width="25" height="19" loading="lazy" /><span>{country.name}</span>{selectedCountry===country.code&&<span className="country-option-check">✓</span>}</button>)}</div></section></div>}
+      {countryPickerOpen && <div className="country-picker-backdrop" role="presentation" onClick={()=>setCountryPickerOpen(false)}><section className="country-picker" role="dialog" aria-modal="true" aria-label="Select music country" onClick={e=>e.stopPropagation()}><header><div><small>{t("Explore music by region")}</small><h2>{t("Select a country")}</h2></div><button type="button" onClick={()=>setCountryPickerOpen(false)} aria-label="Close country selector"><X size={20}/></button></header><input className="country-picker-search" value={countrySearch} onChange={e=>setCountrySearch(e.target.value)} placeholder={t("Search countries…")} aria-label={t("Search countries…")}/><div className="country-picker-list">{countryOptions.filter(country=>country.name.toLowerCase().includes(countrySearch.trim().toLowerCase())).map(country=><button type="button" key={country.code} className={selectedCountry===country.code?"selected":""} onClick={()=>{setSelectedCountry(country.code);localStorage.setItem("afrovibez.explore-country.v1",country.code);setCountryPickerOpen(false);notify(`Music region set to ${country.name}.`);}}><img className="country-option-flag" src={country.flagUrl} alt="" width="25" height="19" loading="lazy" /><span>{country.name}</span>{selectedCountry===country.code&&<span className="country-option-check">✓</span>}</button>)}</div></section></div>}
 
       {menuTrack && <div className="track-menu-backdrop" onClick={()=>setMenuTrack(null)}><section className="track-menu-sheet" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
         <div className="sheet-grip"/><button className="sheet-close" onClick={()=>setMenuTrack(null)}><X/></button>
@@ -1027,14 +1112,14 @@ export default function HomePage() {
             </div>
             <section className="af-artist-card">
               <div className="af-section-title"><strong>Artist</strong><button onClick={()=>{setInput(current.artistName);setQuery(current.artistName);setView("discover");setPlayerOpen(false);}}>See catalogue <ExternalLink/></button></div>
-              <div className="af-artist-row"><button className="af-artist-name-link" onClick={()=>openArtistProfile(current)}><div className="af-artist-avatar">{current.artistId && artistProfiles[current.artistId]?.avatarUrl ? <img src={artistProfiles[current.artistId].avatarUrl} alt="" /> : current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong></button><button onClick={()=>{setFollowedArtists(a=>a.includes(current.artistName)?a.filter(x=>x!==current.artistName):[...a,current.artistName]);notify(followedArtists.includes(current.artistName)?"Artist unfollowed":"Artist followed");}}>{followedArtists.includes(current.artistName)?"FOLLOWING":"FOLLOW"}</button></div>
+              <div className="af-artist-row"><button className="af-artist-name-link" onClick={()=>openArtistProfile(current)}><div className="af-artist-avatar">{current.artistId && artistProfiles[current.artistId]?.avatarUrl ? <img src={artistProfiles[current.artistId].avatarUrl} alt="" /> : current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong></button><button onClick={()=>current.artistId&&void toggleArtistFollow(current.artistId,current.artistName)}>{current.artistId&&followedArtistIds.includes(current.artistId)?"FOLLOWING":"FOLLOW"}</button></div>
               <p>{current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
             </section>
             <div className="af-playback-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an approved full-length AfroVibe release."}</div>
           </section>
         </div>
       )}
-    {artistProfileOpen && selectedArtistId && artistProfiles[selectedArtistId] && (()=>{const p=artistProfiles[selectedArtistId];const artistTracks=studioTracks.filter(track=>track.artistId===selectedArtistId);const isFollowing=followedArtists.includes(p.stage_name);const links=[["Website",p.website],["Instagram",p.instagram],["TikTok",p.tiktok],["YouTube",p.youtube],["Facebook",p.facebook],["Music",p.music_link]].filter((x:any)=>x[1]);const href=(v:string)=>/^https?:\/\//i.test(v)?v:"https://"+v.replace(/^@/,"");return <div className="artist-profile-backdrop" role="dialog" aria-modal="true" aria-label={`${p.stage_name} artist profile`} onClick={()=>setArtistProfileOpen(false)}><section className="artist-profile-sheet" onClick={e=>e.stopPropagation()}><button className="artist-profile-close" onClick={()=>setArtistProfileOpen(false)} aria-label="Close artist profile"><X/></button><div className="artist-profile-hero">{p.avatarUrl?<img className="artist-profile-avatar" src={p.avatarUrl} alt={`${p.stage_name} profile photo`}/>:<div className="artist-profile-avatar artist-profile-no-photo" role="img" aria-label="Artist profile photo not uploaded"><UserPlus size={34}/><span>Photo unavailable</span></div>}<div className="eyebrow">AFROVIBE ARTIST</div><h2>{p.stage_name}</h2><p className="artist-profile-location">{[p.city,p.country].filter(Boolean).join(", ")}</p>{p.artist_type&&<p>{p.artist_type}</p>}{p.primary_language&&<p>Performs in: {p.primary_language}</p>}<button className="artist-profile-follow" onClick={()=>{setFollowedArtists(list=>isFollowing?list.filter(name=>name!==p.stage_name):[...list,p.stage_name]);notify(isFollowing?"Artist unfollowed on this device":"Artist followed on this device");}}>{isFollowing?"Following":"Follow artist"}</button></div><div className="artist-profile-stats"><div><strong>{artistTracks.length}</strong><span>Approved releases</span></div><div><strong>—</strong><span>Followers</span><small>Account sync not connected</small></div><div><strong>—</strong><span>Streams</span><small>Public totals unavailable</small></div></div>{p.bio&&<div className="artist-profile-bio">{p.bio}</div>}{links.length>0&&<div className="artist-profile-links">{links.map(([label,value]:any)=><a key={label} href={href(value)} target="_blank" rel="noreferrer">{label} ↗</a>)}</div>}<section className="artist-profile-discography"><div className="artist-profile-section-heading"><h3>Music & releases</h3><span>{artistTracks.length} {artistTracks.length===1?"release":"releases"}</span></div>{artistTracks.length?artistTracks.map(track=><button className="artist-release-row" key={track.trackId} onClick={()=>{setArtistProfileOpen(false);void playTrack(track);}}><img src={track.artworkUrl100} alt=""/><span><strong>{track.trackName}</strong><small>{track.collectionName||"Single"} · {track.primaryGenreName||"Music"}</small></span><Play size={18}/></button>):<p className="artist-profile-empty">No approved releases are currently listed for this artist.</p>}</section><p className="artist-profile-sync-note">Follow status is currently saved on this device. Follower totals and cross-device follows will appear when listener accounts and social sync are connected.</p></section></div>})()}
+    {artistProfileOpen && selectedArtistId && artistProfiles[selectedArtistId] && (()=>{const p=artistProfiles[selectedArtistId];const artistTracks=studioTracks.filter(track=>track.artistId===selectedArtistId);const isFollowing=followedArtistIds.includes(selectedArtistId);const links=[["Website",p.website],["Instagram",p.instagram],["TikTok",p.tiktok],["YouTube",p.youtube],["Facebook",p.facebook],["Music",p.music_link]].filter((x:any)=>x[1]);const href=(v:string)=>/^https?:\/\//i.test(v)?v:"https://"+v.replace(/^@/,"");return <div className="artist-profile-backdrop" role="dialog" aria-modal="true" aria-label={`${p.stage_name} artist profile`} onClick={()=>setArtistProfileOpen(false)}><section className="artist-profile-sheet" onClick={e=>e.stopPropagation()}><button className="artist-profile-close" onClick={()=>setArtistProfileOpen(false)} aria-label="Close artist profile"><X/></button><div className="artist-profile-hero">{p.avatarUrl?<img className="artist-profile-avatar" src={p.avatarUrl} alt={`${p.stage_name} profile photo`}/>:<div className="artist-profile-avatar artist-profile-no-photo" role="img" aria-label="Artist profile photo not uploaded"><UserPlus size={34}/><span>{t("Photo unavailable")}</span></div>}<div className="eyebrow">AFROVIBE ARTIST</div><h2>{p.stage_name}</h2><p className="artist-profile-location">{[p.city,p.country].filter(Boolean).join(", ")}</p>{p.artist_type&&<p>{p.artist_type}</p>}{p.primary_language&&<p>{t("Performs in:")} {p.primary_language}</p>}<button className="artist-profile-follow" onClick={()=>void toggleArtistFollow(selectedArtistId,p.stage_name)}>{isFollowing?"Following":"Follow artist"}</button></div><div className="artist-profile-stats"><div><strong>{artistTracks.length}</strong><span>{t("Approved releases")}</span></div><div><strong>{(followerCounts[selectedArtistId]||0).toLocaleString(language)}</strong><span>{t("Followers")}</span></div><div><strong>—</strong><span>Streams</span><small>Public totals unavailable</small></div></div>{p.bio&&<div className="artist-profile-bio">{p.bio}</div>}{links.length>0&&<div className="artist-profile-links">{links.map(([label,value]:any)=><a key={label} href={href(value)} target="_blank" rel="noreferrer">{label} ↗</a>)}</div>}<section className="artist-profile-discography"><div className="artist-profile-section-heading"><h3>{t("Music & releases")}</h3><span>{artistTracks.length} {t(artistTracks.length===1?"release":"releases")}</span></div>{artistTracks.length?artistTracks.map(track=><button className="artist-release-row" key={track.trackId} onClick={()=>{setArtistProfileOpen(false);void playTrack(track);}}><img src={track.artworkUrl100} alt=""/><span><strong>{track.trackName}</strong><small>{track.collectionName||"Single"} · {track.primaryGenreName||"Music"}</small></span><Play size={18}/></button>):<p className="artist-profile-empty">{t("No approved releases are currently listed for this artist.")}</p>}</section><p className="artist-profile-sync-note">Follows and follower totals are stored in AfroVibe Music. Anonymous listener accounts keep your follows on this device until account linking is added.</p></section></div>})()}
     </main>
   );
 }
