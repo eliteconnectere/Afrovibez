@@ -620,3 +620,21 @@ html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
 
 .af-view-transition{animation:afViewEnter .24s cubic-bezier(.2,.75,.25,1) both}
 @keyframes afViewEnter{from{opacity:.35;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+
+
+/* Responsive drawer refinements: clear backdrop, safe-area spacing and stable menu geometry. */
+.sidebar{transition:transform .28s cubic-bezier(.2,.8,.2,1),box-shadow .28s ease}
+.mobile-nav-backdrop{display:none}
+@media(max-width:700px){
+  .sidebar{width:min(84vw,310px);padding:calc(22px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom));box-shadow:18px 0 48px rgba(8,20,48,.18);transform:translateX(-105%)}
+  .sidebar.sidebar-open{transform:translateX(0)}
+  .mobile-nav-backdrop{display:block;position:fixed;inset:0;z-index:19;border:0;background:rgba(9,18,39,.48);backdrop-filter:blur(3px);animation:afDrawerBackdrop .18s ease both}
+  .sidebar.sidebar-open{z-index:20}
+  .sidebar .brand{min-height:42px}
+  .sidebar .nav-label{margin:38px 0 12px 10px}
+  .sidebar nav{gap:5px}
+  .sidebar .nav-item{min-height:48px}
+  .sidebar-note{margin-top:auto}
+}
+@keyframes afDrawerBackdrop{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){.sidebar,.mobile-nav-backdrop{transition:none!important;animation:none!important}}
