@@ -78,6 +78,7 @@ export default function HomePage() {
   const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
   const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
+  const deleteOfflineBlob = async (id:number)=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));}catch{}};
 
   // No third-party catalogue: AfroVibez only plays full-length artist uploads.
   const fetchTracks = useCallback(async (_term: string, _limit = 24) => [] as Track[], []);
@@ -181,6 +182,8 @@ export default function HomePage() {
         const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,release_date,allow_downloads&status=eq.approved&release_date=lte.${localToday}&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
         if (!response.ok) throw new Error("Published AfroVibe releases are temporarily unavailable.");
         const rows = await response.json();
+        const lockedTrackIds=(rows||[]).filter((row:any)=>row.allow_downloads===false).map((row:any)=>parseInt(row.id.replace(/-/g,"").slice(0,12),16));
+        if(lockedTrackIds.length)await Promise.all(lockedTrackIds.map((id:number)=>deleteOfflineBlob(id)));
         const artistIds = Array.from(new Set((rows || []).map((row: any) => row.artist_id)));
         const artistResponse = artistIds.length ? await fetch(`${base}/rest/v1/studio_artist_public?select=id,stage_name,avatar_path,artist_type,country,city,primary_language,bio,website,instagram,tiktok,youtube,facebook,music_link&id=in.(${artistIds.join(",")})`, { headers: { apikey: key, Authorization: `Bearer ${key}` } }) : null;
         const artistRows = artistResponse?.ok ? await artistResponse.json() : [];
