@@ -17,6 +17,8 @@ type Track = {
   audioUrl?: string;
   trackViewUrl: string;
   source?: "studio";
+  artistId?: string;
+  allowDownloads?: boolean;
   primaryGenreName?: string;
   trackExplicitness?: string;
   contentAdvisoryRating?: string;
@@ -42,6 +44,10 @@ export default function HomePage() {
   const [chartsLoading, setChartsLoading] = useState(false);
   const [error, setError] = useState("");
   const [current, setCurrent] = useState<Track | null>(null);
+  const [artistProfiles, setArtistProfiles] = useState<Record<string, any>>({});
+  const [artistProfileOpen, setArtistProfileOpen] = useState(false);
+  const [offlineDownloads, setOfflineDownloads] = useState<Set<number>>(new Set());
+  const [offlineBusy, setOfflineBusy] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -65,6 +71,12 @@ export default function HomePage() {
   const catalogueRef = useRef<Track[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentTrackIdRef = useRef<number | null>(null);
+  const activeObjectUrlRef = useRef<string | null>(null);
+
+  const OFFLINE_DB = "afrovibez-offline-v1";
+  const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+  const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
+  const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
 
   // No third-party catalogue: AfroVibez only plays full-length artist uploads.
   const fetchTracks = useCallback(async (_term: string, _limit = 24) => [] as Track[], []);
@@ -112,6 +124,7 @@ export default function HomePage() {
 
   useEffect(() => {
     try {
+      if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<number[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAllKeys();req.onsuccess=()=>resolve(req.result as number[]);req.onerror=()=>reject(req.error);})).then(ids=>setOfflineDownloads(new Set(ids))).catch(()=>{});}
       setLiked(new Set());
       setQueue((JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[]).filter(t => t.source === "studio"));
       setPlaylists((JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]") as {id:string;name:string;tracks:Track[]}[]).map(p => ({...p, tracks:p.tracks.filter(t => t.source === "studio")})));
@@ -164,13 +177,16 @@ export default function HomePage() {
       try {
         const now = new Date();
         const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,release_date&status=eq.approved&release_date=lte.${localToday}&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,release_date,allow_downloads&status=eq.approved&release_date=lte.${localToday}&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
         if (!response.ok) throw new Error("Published AfroVibe releases are temporarily unavailable.");
         const rows = await response.json();
         const artistIds = Array.from(new Set((rows || []).map((row: any) => row.artist_id)));
-        const artistResponse = artistIds.length ? await fetch(`${base}/rest/v1/studio_artist_public?select=id,stage_name&id=in.(${artistIds.join(",")})`, { headers: { apikey: key, Authorization: `Bearer ${key}` } }) : null;
+        const artistResponse = artistIds.length ? await fetch(`${base}/rest/v1/studio_artist_public?select=id,stage_name,avatar_path,artist_type,country,city,primary_language,bio,website,instagram,tiktok,youtube,facebook,music_link&id=in.(${artistIds.join(",")})`, { headers: { apikey: key, Authorization: `Bearer ${key}` } }) : null;
         const artistRows = artistResponse?.ok ? await artistResponse.json() : [];
         const artistNames = new Map<string, string>((artistRows || []).map((artist: any) => [artist.id, artist.stage_name] as [string, string]));
+        const profileMap:Record<string,any>={};
+        await Promise.all((artistRows||[]).map(async(artist:any)=>{let avatarUrl="";if(artist.avatar_path){const path=artist.avatar_path.split("/").map(encodeURIComponent).join("/");const response=await fetch(`${base}/storage/v1/object/sign/studio-artwork/${path}`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({expiresIn:3600})});if(response.ok){const data=await response.json();avatarUrl=data.signedURL?.startsWith("http")?data.signedURL:`${base}/storage/v1${data.signedURL||""}`;}}profileMap[artist.id]={...artist,avatarUrl};}));
+        setArtistProfiles(profileMap);
         const signed = await Promise.all((rows || []).map(async (row: any) => {
           const sign = async (bucket: string, path: string) => {
             const encoded = path.split("/").map(encodeURIComponent).join("/");
@@ -182,7 +198,7 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+          return { trackId: parseInt(numericId, 16), artistId:row.artist_id, allowDownloads:row.allow_downloads!==false, trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
@@ -276,7 +292,10 @@ export default function HomePage() {
       return;
     }
     audio.pause();
-    audio.src = track.audioUrl;
+    if(activeObjectUrlRef.current){URL.revokeObjectURL(activeObjectUrlRef.current);activeObjectUrlRef.current=null;}
+    const offlineBlob=await getOfflineBlob(track.trackId);
+    if(!offlineBlob&&!navigator.onLine){notify("This song is not saved offline. Connect to the internet to play or download it.");return;}
+    if(offlineBlob){activeObjectUrlRef.current=URL.createObjectURL(offlineBlob);audio.src=activeObjectUrlRef.current;}else{audio.src=track.audioUrl;}
     let savedPreferences: Record<string, unknown> = {};
     try { savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}"); } catch {}
     audio.volume = Math.max(0, Math.min(100, Number(savedPreferences.volume ?? 85))) / 100;
@@ -294,7 +313,17 @@ export default function HomePage() {
     }
   };
 
-  const notify = (message:string) => { setToast(message); window.setTimeout(()=>setToast(""),2500); };
+  const notify = (message:string) => { setToast(message); window.setTimeout(()=>setToast(""),3000); };
+  const downloadTrack = async (track:Track) => {
+    if(track.allowDownloads===false){notify("The artist has disabled downloads for this release.");return;}
+    if(offlineDownloads.has(track.trackId)){notify("This song is already saved for offline listening.");return;}
+    if(!track.audioUrl){notify("The full audio file is not available right now.");return;}
+    if(!window.confirm(`Save “${track.trackName}” by ${track.artistName} for offline listening? The first download uses internet data. After it is saved, playback on this device can work without mobile data or Wi-Fi.`))return;
+    setOfflineBusy(track.trackId);
+    try{const response=await fetch(track.audioUrl);if(!response.ok)throw new Error("Download could not start.");const blob=await response.blob();if(!blob.size)throw new Error("The downloaded audio file was empty.");await saveOfflineBlob(track,blob);setOfflineDownloads(prev=>new Set([...prev,track.trackId]));notify("Saved for offline listening on this device.");}
+    catch(error:any){notify(error?.message||"Offline download failed. Please try again.");}finally{setOfflineBusy(null);}
+  };
+  const openArtistProfile = (track:Track) => {if(!track.artistId||!artistProfiles[track.artistId]){notify("Artist details are not available right now.");return;}setArtistProfileOpen(true);};
   const addToQueue = (track:Track, next=false) => {
     setQueue(items => next ? [track,...items.filter(t=>t.trackId!==track.trackId)] : [...items.filter(t=>t.trackId!==track.trackId),track]);
     setMenuTrack(null); notify(next ? "Added to play next." : "Added to queue.");
@@ -426,7 +455,7 @@ export default function HomePage() {
       </div>
       <div className="track-info">
         <strong title={track.trackName}>{track.trackName}</strong>
-        <span>{track.artistName}</span>
+        <button className="track-artist-link" onClick={()=>openArtistProfile(track)}>{track.artistName}</button>
         <small>{track.primaryGenreName || "Music"}</small>
       </div>
       <div className="track-actions">
@@ -759,10 +788,11 @@ export default function HomePage() {
           <button onClick={()=>{setFollowedArtists(a=>a.includes(menuTrack.artistName)?a.filter(x=>x!==menuTrack.artistName):[...a,menuTrack.artistName]);setMenuTrack(null);notify("Artist follow preference saved on this device.");}}><UserPlus/> More from Artist · {followedArtists.includes(menuTrack.artistName)?"Following":"Follow"}</button>
           <button onClick={()=>addToQueue(menuTrack,true)}><ListPlus/> Play Next</button><button onClick={()=>addToQueue(menuTrack)}><ListOrdered/> Add to Queue</button>
           <button onClick={()=>{toggleLike(menuTrack.trackId);setMenuTrack(null);}}><Heart/> {liked.has(menuTrack.trackId)?"Unlike":"Like"}</button>
+          <button onClick={()=>void downloadTrack(menuTrack)} disabled={menuTrack.allowDownloads===false||offlineBusy===menuTrack.trackId}>{menuTrack.allowDownloads===false?"🔒 Downloads locked":offlineBusy===menuTrack.trackId?"Saving offline…":offlineDownloads.has(menuTrack.trackId)?"✓ Saved for offline listening":"⇩ Download for offline listening"}</button>
           <button onClick={()=>addToPlaylist(menuTrack)}><Plus/> Add to Playlist</button>
           <button onClick={()=>{setQuery(menuTrack.artistName);setInput(menuTrack.artistName);setView("discover");setMenuTrack(null);}}><Radio/> See similar songs</button><button onClick={()=>{setQuery(menuTrack.artistName);setInput(menuTrack.artistName);setView("discover");setMenuTrack(null);}}><Album/> More from {menuTrack.artistName}</button>
           
-        </div><p className="local-only-note">Your likes, follows, playlists and queue are saved on this device. Shared social feeds, comments and licensed downloads need connected services.</p>
+        </div><p className="local-only-note">Offline downloads are stored privately on this device when the artist allows downloads. The first save uses data; later playback can work without a connection.</p>
       </section></div>}
       {current && playerOpen && (
         <div className="full-player-backdrop" role="dialog" aria-modal="true" aria-label="Now playing">
@@ -782,6 +812,7 @@ export default function HomePage() {
             <div className="af-primary-actions">
               <button onClick={()=>addToPlaylist(current)}><ListPlus/><span>Playlist</span></button>
               <button onClick={()=>void shareTrack(current)}><Share2/><span>Share</span></button>
+              <button className={offlineDownloads.has(current.trackId)?"offline-saved":""} disabled={current.allowDownloads===false||offlineBusy===current.trackId} onClick={()=>void downloadTrack(current)}>{current.allowDownloads===false?<span>🔒</span>:<span>⇩</span>}<span>{current.allowDownloads===false?"Locked":offlineBusy===current.trackId?"Saving…":offlineDownloads.has(current.trackId)?"Saved offline":"Download"}</span></button>
               <button onClick={()=>setMenuTrack(current)}><MoreVertical/><span>More</span></button>
             </div>
             <div className="af-wave-wrap">
@@ -813,13 +844,14 @@ export default function HomePage() {
             </div>
             <section className="af-artist-card">
               <div className="af-section-title"><strong>Artist</strong><button onClick={()=>{setInput(current.artistName);setQuery(current.artistName);setView("discover");setPlayerOpen(false);}}>See catalogue <ExternalLink/></button></div>
-              <div className="af-artist-row"><div className="af-artist-avatar">{current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong><button onClick={()=>{setFollowedArtists(a=>a.includes(current.artistName)?a.filter(x=>x!==current.artistName):[...a,current.artistName]);notify(followedArtists.includes(current.artistName)?"Artist unfollowed":"Artist followed");}}>{followedArtists.includes(current.artistName)?"FOLLOWING":"FOLLOW"}</button></div>
+              <div className="af-artist-row"><button className="af-artist-name-link" onClick={()=>openArtistProfile(current)}><div className="af-artist-avatar">{current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong></button><button onClick={()=>{setFollowedArtists(a=>a.includes(current.artistName)?a.filter(x=>x!==current.artistName):[...a,current.artistName]);notify(followedArtists.includes(current.artistName)?"Artist unfollowed":"Artist followed");}}>{followedArtists.includes(current.artistName)?"FOLLOWING":"FOLLOW"}</button></div>
               <p>{current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
             </section>
             <div className="af-playback-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an approved full-length AfroVibe release."}</div>
           </section>
         </div>
       )}
+    {artistProfileOpen && current?.artistId && artistProfiles[current.artistId] && (()=>{const p=artistProfiles[current.artistId];const links=[["Website",p.website],["Instagram",p.instagram],["TikTok",p.tiktok],["YouTube",p.youtube],["Facebook",p.facebook],["Music",p.music_link]].filter((x:any)=>x[1]);const href=(v:string)=>/^https?:\/\//i.test(v)?v:"https://"+v.replace(/^@/,"");return <div className="artist-profile-backdrop" role="dialog" aria-modal="true" aria-label={`${p.stage_name} artist profile`} onClick={()=>setArtistProfileOpen(false)}><section className="artist-profile-sheet" onClick={e=>e.stopPropagation()}><button className="artist-profile-close" onClick={()=>setArtistProfileOpen(false)} aria-label="Close artist profile"><X/></button>{p.avatarUrl?<img className="artist-profile-avatar" src={p.avatarUrl} alt={`${p.stage_name} profile`}/>:<div className="artist-profile-avatar artist-profile-initial">{(p.stage_name||"A").slice(0,1).toUpperCase()}</div>}<div className="eyebrow">AFROVIBE ARTIST</div><h2>{p.stage_name}</h2><p className="artist-profile-location">{[p.city,p.country].filter(Boolean).join(", ")}</p>{p.artist_type&&<p>{p.artist_type}</p>}{p.primary_language&&<p>Performs in: {p.primary_language}</p>}{p.bio&&<div className="artist-profile-bio">{p.bio}</div>}{links.length>0&&<div className="artist-profile-links">{links.map(([label,value]:any)=><a key={label} href={href(value)} target="_blank" rel="noreferrer">{label} ↗</a>)}</div>}</section></div>})()}
     </main>
   );
 }
