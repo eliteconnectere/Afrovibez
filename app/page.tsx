@@ -1255,11 +1255,9 @@ export default function HomePage() {
         <div className="af-tools-backdrop" role="presentation" onClick={()=>setPlayerToolsOpen(false)}>
           <section className="af-tools-sheet" role="dialog" aria-modal="true" aria-label="Playback tools" onClick={e=>e.stopPropagation()}>
             <div className="af-tools-grid">
-              <button onClick={()=>notify("Cast is not available in this browser yet.","warning","Cast unavailable")}><Radio/><span>Cast</span></button>
               <button className={bassBoostEnabled?"active":""} aria-pressed={bassBoostEnabled} onClick={toggleBassBoost}><Volume2/><span>Bass Boost</span></button>
               <button onClick={openAudioMod}><Music2/><span>Audiomod</span></button>
               <button className={sleepTimerMinutes?"active":""} onClick={()=>setSleepTimerOpen(true)}><Settings/><span>{sleepTimerMinutes ? "Sleep "+sleepTimerMinutes+"m" : "Sleep Timer"}</span></button>
-              <button onClick={()=>notify("HiFi audio is not available for this release yet.","warning","HiFi unavailable")}><Headphones/><span>HiFi</span></button>
             </div>
             <button className="af-tools-close" onClick={()=>setPlayerToolsOpen(false)}>Close</button>
           </section>
@@ -1341,12 +1339,6 @@ export default function HomePage() {
               <button className="af-play-toggle" onClick={()=>void playTrack(current)} aria-label={playing?"Pause":"Play"}>{playing?<Pause fill="currentColor"/>:<Play fill="currentColor"/>}</button>
               <button onClick={()=>playAdjacent(1)} aria-label="Next track"><SkipForward fill="currentColor"/></button>
               <button className={shuffleEnabled?"active":""} onClick={()=>{const v=!shuffleEnabled;shuffleRef.current=v;setShuffleEnabled(v);notify(v?"Shuffle enabled":"Shuffle disabled");}} aria-label="Toggle shuffle" aria-pressed={shuffleEnabled}><Shuffle/></button>
-            </div>
-            <div className="af-audiomod">
-              <div className="af-section-title"><strong>Audiomod</strong><label>Stay on <input type="checkbox" checked={keepAudioMode} onChange={e=>{setKeepAudioMode(e.target.checked);localStorage.setItem("afrovibez.keepAudioMode",String(e.target.checked));}}/><span/></label></div>
-              <div className="af-mode-list">
-                {([{id:"sped",label:"Sped Up"},{id:"slowed",label:"Slowed"},{id:"nightcore",label:"Nightcore"},{id:"daycore",label:"Daycore"},{id:"normal",label:"Original"}] as const).map(mode=><button key={mode.id} className={audioMode===mode.id?"selected":""} onClick={()=>applyAudioMode(mode.id)}><span>{mode.label}</span><small>{mode.id==="normal"?"1.0×":mode.id==="sped"?"1.25×":mode.id==="slowed"?"0.8×":mode.id==="nightcore"?"1.35×":"0.85×"}</small></button>)}
-              </div>
             </div>
             <div className="af-repeat-row">
               <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat enabled":"Repeat disabled");}} aria-pressed={repeatEnabled}><Repeat/> Repeat {repeatEnabled?"On":"Off"}</button>
