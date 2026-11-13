@@ -635,3 +635,39 @@ html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
 }
 @keyframes afDrawerBackdrop{from{opacity:0}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.sidebar,.mobile-nav-backdrop{transition:none!important;animation:none!important}}
+
+/* Queue and listener comments inspired by the supplied mobile reference. */
+.af-queue-list{display:flex;flex-direction:column;gap:0}
+.af-queue-row{display:flex;align-items:center;gap:13px;min-height:86px;padding:12px 10px;border-bottom:1px solid rgba(128,145,170,.2);background:transparent}
+.af-queue-row .chart-cover{width:64px;height:64px;flex:0 0 64px;border-radius:9px;overflow:hidden}
+.af-queue-row .chart-cover img{width:100%;height:100%;object-fit:cover}
+.af-queue-row .chart-info{min-width:0;flex:1;cursor:pointer}
+.af-queue-row .chart-info strong,.af-queue-row .chart-info span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.af-queue-row .chart-info strong{font-size:15px;font-weight:750}
+.af-queue-row .chart-info span{margin-top:4px;font-size:13px;opacity:.7}
+.af-queue-row.is-dragging{opacity:.45;transform:scale(.985)}
+.af-queue-drag{width:42px;height:48px;flex:0 0 42px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;border:0;background:transparent;cursor:grab;touch-action:none}
+.af-queue-drag span{display:block;width:28px;height:2px;border-radius:4px;background:currentColor;opacity:.58}
+.af-queue-drag:active{cursor:grabbing}
+.af-comments-section{margin:28px -2px 0;padding:22px 0 8px;border-top:1px solid rgba(128,145,170,.24)}
+.af-comments-section>.af-section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
+.af-comments-section>.af-section-title strong{font-size:19px}
+.af-comments-section>.af-section-title span{font-size:12px;opacity:.65}
+.af-comment-compose{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:999px;background:rgba(128,145,170,.12)}
+.af-comment-avatar{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:50%;background:#1769d2;color:#fff;font-weight:800;text-transform:uppercase}
+.af-comment-compose input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:inherit;font:inherit;font-size:13px}
+.af-comment-compose button{border:0;background:transparent;color:#f0a321;font-weight:800;cursor:pointer}
+.af-comment-compose button:disabled{opacity:.4;cursor:not-allowed}
+.af-comment-cancel-reply{margin:8px 0 0 48px;border:0;background:transparent;color:#f0a321;font-size:12px}
+.af-comments-list{margin-top:12px}
+.af-comment{display:flex;align-items:flex-start;gap:11px;padding:15px 3px;border-bottom:1px solid rgba(128,145,170,.18)}
+.af-comment-body{min-width:0;flex:1}
+.af-comment-body>strong,.af-comment-reply strong{font-size:13px;font-weight:750}
+.af-comment-body>p,.af-comment-reply p{margin:5px 0 8px;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.af-comment-actions{display:flex;align-items:center;gap:16px}
+.af-comment-actions button{padding:3px 0;border:0;background:transparent;color:inherit;font-size:12px;opacity:.8;cursor:pointer}
+.af-comment-actions button:last-child{color:#f0a321;font-weight:800;opacity:1}
+.af-comment-reply{margin:12px 0 0 8px;padding:10px 12px;border-left:2px solid #f0a321;background:rgba(128,145,170,.08);border-radius:0 9px 9px 0}
+.af-comment-more{border:0;background:transparent;color:inherit;font-size:23px;line-height:1;cursor:pointer}
+.af-comments-empty{padding:16px 4px;font-size:13px;opacity:.65}
+@media(max-width:600px){.af-queue-row{gap:10px;padding:11px 3px}.af-queue-row .chart-cover{width:58px;height:58px;flex-basis:58px}.af-queue-row .chart-info strong{font-size:14px}.af-comment{gap:9px}.af-comment-avatar{width:34px;height:34px;flex-basis:34px}}
