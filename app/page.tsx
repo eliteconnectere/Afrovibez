@@ -1054,7 +1054,7 @@ export default function HomePage() {
                 <div className="empty-state">
                   <TrendingUp size={28} />
                   <strong>No chart data yet</strong>
-                  <span>Real chart rankings need play-count analytics and listener activity tracking, which are not connected yet.</span>
+                  <span>Charts appear as soon as approved releases receive verified 30-second listens. No artificial rankings.</span>
                 </div>
               )}
             </section>
