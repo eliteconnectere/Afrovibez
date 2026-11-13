@@ -53,7 +53,14 @@ function genreMatchesCategory(genre: string, category: string) {
 }
 
 
-const sectionsConfig: { id: string; title: string; subtitle: string; term: string }[] = [];
+const sectionsConfig: { id: string; title: string; subtitle: string; term: string }[] = [
+  { id: "latest", title: "Recently added", subtitle: "The latest approved releases from AfroVibe Studio.", term: "latest" },
+  { id: "afrobeats", title: "Afrobeats & Afropop", subtitle: "Fresh sounds from across Africa.", term: "afrobeats" },
+  { id: "amapiano", title: "Amapiano", subtitle: "Log drums, soulful keys and dance-floor energy.", term: "amapiano" },
+  { id: "hiphop", title: "Hip-Hop & Rap", subtitle: "Rap, drill and street sounds.", term: "hip-hop" },
+  { id: "rnb", title: "R&B & Soul", subtitle: "Smooth vocals and soulful records.", term: "r&b" },
+  { id: "gospel", title: "Gospel & Inspiration", subtitle: "Music to lift the spirit.", term: "gospel" }
+];
 const countryCodes = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" ");
 const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
 const countryFlagEmoji = (code: string) => String.fromCodePoint(...code.toUpperCase().split("").map(char => 127397 + char.charCodeAt(0)));
@@ -226,14 +233,37 @@ export default function HomePage() {
   const saveOfflineBlob = async (track:Track,blob:Blob,artworkBlob:Blob,artistProfile:any,artistAvatarBlob:Blob|null)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,studioTrackId:track.studioTrackId,blob,artworkBlob,artistAvatarBlob,artistProfile,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,trackViewUrl:track.trackViewUrl,source:track.source,trackExplicitness:track.trackExplicitness,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
   const deleteOfflineBlob = async (id:number):Promise<boolean>=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));return true;}catch{return false;}};
 
-  // No third-party catalogue: AfroVibez only plays full-length artist uploads.
-  const fetchTracks = useCallback(async (_term: string, _limit = 24) => [] as Track[], []);
-  const loadTracks = useCallback(async (_term: string) => {
+  // Every discovery surface is built from real, approved AfroVibe Studio releases.
+  // No third-party catalogue, fabricated tracks, or subscription-gated catalogue.
+  const fetchTracks = useCallback(async (term: string, limit = 24) => {
+    const all = [...studioTracks, ...offlineTracks]
+      .filter((track, index, list) => list.findIndex(item => item.trackId === track.trackId) === index);
+    const normalized = term.trim().toLowerCase();
+    const matches = !normalized || normalized === "latest"
+      ? all
+      : all.filter(track => {
+          const haystack = `${track.trackName} ${track.artistName} ${track.collectionName || ""} ${track.primaryGenreName || ""}`.toLowerCase();
+          if (normalized === "afrobeats") return genreMatchesCategory(track.primaryGenreName || "", "African") || genreMatchesCategory(track.primaryGenreName || "", "Afrobeats") || genreMatchesCategory(track.primaryGenreName || "", "Afropop");
+          if (normalized === "hip-hop") return genreMatchesCategory(track.primaryGenreName || "", "Hip-Hop / Rap");
+          if (normalized === "r&b") return genreMatchesCategory(track.primaryGenreName || "", "R&B / Soul");
+          if (normalized === "gospel") return genreMatchesCategory(track.primaryGenreName || "", "Gospel / Christian");
+          return haystack.includes(normalized);
+        });
+    return matches.slice(0, limit);
+  }, [studioTracks, offlineTracks]);
+  const loadTracks = useCallback(async (term: string) => {
     setLoading(true);
     setError("");
-    setTracks([]);
-    setLoading(false);
-  }, []);
+    try {
+      const list = await fetchTracks(term, 100);
+      setTracks(list);
+    } catch (cause) {
+      setError("We couldn't load approved AfroVibez releases. Check your connection and retry.");
+      setTracks([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchTracks]);
 
   const loadSections = useCallback(async () => {
     setSectionsLoading(true);
