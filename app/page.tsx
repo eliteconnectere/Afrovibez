@@ -23,6 +23,7 @@ type Track = {
   artistId?: string;
   studioTrackId?: string;
   allowDownloads?: boolean;
+  storagePath?: string;
   primaryGenreName?: string;
   trackExplicitness?: string;
   contentAdvisoryRating?: string;
@@ -360,7 +361,7 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), artistId:row.artist_id, studioTrackId:row.id, allowDownloads:row.allow_downloads!==false, trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+          return { trackId: parseInt(numericId, 16), artistId:row.artist_id, studioTrackId:row.id, allowDownloads:row.allow_downloads!==false, storagePath:row.audio_path, trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
@@ -500,19 +501,40 @@ export default function HomePage() {
     setOfflineBusy(track.trackId);
     setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:0,total:null,percent:null});
     try{
-      const response=await fetch(track.audioUrl!);
-      if(!response.ok)throw new Error("Download could not start.");
+      const base=process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if(!base||!key||!track.studioTrackId)throw new Error("This release is missing its download information. Refresh AfroVibez and try again.");
+      // Re-check the artist's current permission immediately before saving. The catalogue
+      // can stay open for hours, so a cached permission must never override a new lock.
+      const check=await fetch(`${base}/rest/v1/studio_tracks?select=status,allow_downloads,audio_path&id=eq.${track.studioTrackId}`,{headers:{apikey:key,Authorization:`Bearer ${key}`,Cache:"no-store"}});
+      if(!check.ok)throw new Error("We couldn't verify this artist's download setting. Please try again.");
+      const rows=await check.json();
+      const latest=rows?.[0];
+      if(!latest||latest.status!=="approved")throw new Error("This release is no longer available for download.");
+      if(latest.allow_downloads===false)throw new Error("🔒 The artist has locked downloads for this release. You can still stream it.");
+      const path=String(latest.audio_path||track.storagePath||"");
+      if(!path)throw new Error("The original audio file could not be located.");
+      // Mint a fresh signed URL at download time. A URL created when the catalogue
+      // first loaded may have expired while the listener kept the app open.
+      const encoded=path.split("/").map(encodeURIComponent).join("/");
+      const sign=await fetch(`${base}/storage/v1/object/sign/studio-audio/${encoded}`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({expiresIn:600})});
+      if(!sign.ok)throw new Error(`The audio download link could not be prepared (HTTP ${sign.status}). Please try again.`);
+      const signed=await sign.json();
+      const downloadUrl=signed.signedURL?.startsWith("http")?signed.signedURL:`${base}/storage/v1${signed.signedURL||""}`;
+      if(!downloadUrl)throw new Error("The audio download link was empty. Please try again.");
+      const response=await fetch(downloadUrl,{mode:"cors",cache:"no-store"});
+      if(!response.ok)throw new Error(`Audio download failed (HTTP ${response.status}). Please try again.`);
       const headerLength=Number(response.headers.get("content-length"));
       const total=Number.isFinite(headerLength)&&headerLength>0?headerLength:null;
       let blob:Blob;
-      if(response.body){
+      if(response.body&&typeof response.body.getReader==="function"){
         const reader=response.body.getReader();
-        const chunks:ArrayBuffer[]=[];
+        const chunks:Uint8Array[]=[];
         let loaded=0;
         while(true){
           const {done,value}=await reader.read();
           if(done)break;
-          if(value){const chunk=new ArrayBuffer(value.byteLength);new Uint8Array(chunk).set(value);chunks.push(chunk);loaded+=value.byteLength;setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded,total,percent:total?Math.min(100,Math.round(loaded/total*100)):null});}
+          if(value){chunks.push(value);loaded+=value.byteLength;setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded,total,percent:total?Math.min(100,Math.round(loaded/total*100)):null});}
         }
         blob=new Blob(chunks,{type:response.headers.get("content-type")||"audio/mpeg"});
       }else{
@@ -520,12 +542,14 @@ export default function HomePage() {
         setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:blob.size,total:blob.size,percent:100});
       }
       if(!blob.size)throw new Error("The downloaded audio file was empty.");
-      await saveOfflineBlob(track,blob);
+      await saveOfflineBlob({...track,storagePath:path},blob);
       setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));
-      setOfflineTracks(prev=>prev.filter(item=>item.trackId!==track.trackId).concat({...track,audioUrl:undefined}));
+      setOfflineTracks(prev=>prev.filter(item=>item.trackId!==track.trackId).concat({...track,storagePath:path,audioUrl:undefined}));
       notify("Ready whenever you are. Find it in your Downloads.", "success", "Saved for offline listening");
-    }catch(error:any){notify(error?.message||"Your download couldn't be completed. Please try again.", "error", "Download failed");}
-    finally{setOfflineBusy(null);setDownloadProgress(null);}
+    }catch(error:any){
+      const message=error?.message||"Your download couldn't be completed. Please try again.";
+      notify(message.includes("Failed to fetch")?"Your device couldn't reach the audio file. Check your connection and try again. If it keeps happening, the storage download connection needs fixing.":message,"error","Download failed");
+    }finally{setOfflineBusy(null);setDownloadProgress(null);}
   };
   const downloadTrack = (track:Track) => {
     if(track.allowDownloads===false){notify("Downloads aren't available for this release.", "warning", "Download unavailable");return;}
