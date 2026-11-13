@@ -203,7 +203,7 @@ export default function HomePage() {
       setFollowedArtists(names=>already?names.filter(name=>name!==stageName):names.includes(stageName)?names:[...names,stageName]);
       setFollowerCounts(counts=>({...counts,[artistId]:Math.max(0,(counts[artistId]||0)+(already?-1:1))}));
       const names=JSON.parse(localStorage.getItem("afrovibez.follows.v1")||"[]");
-      localStorage.setItem("afrovibez.follows.v1",JSON.stringify(already?names.filter((name:string)=>name!==stageName):[...new Set([...names,stageName])]));
+      localStorage.setItem("afrovibez.follows.v1",JSON.stringify(already?names.filter((name:string)=>name!==stageName):Array.from(new Set([...names,stageName]))));
       notify(already?"Artist unfollowed":"Artist followed","success");
     } catch(error:any) {
       notify(error?.message||"Could not update your follow. Enable Anonymous Sign-Ins in Supabase Auth settings and try again.","error");
