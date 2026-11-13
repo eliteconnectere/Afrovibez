@@ -132,10 +132,12 @@ export default function HomePage() {
   useEffect(() => {
     try {
       if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkUrl100,artistId:row.artistId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
-      setLiked(new Set());
+      const savedLikes = JSON.parse(localStorage.getItem("afrovibez.likes.v1") || "[]");
+      setLiked(new Set(Array.isArray(savedLikes) ? savedLikes.filter((id): id is number => Number.isFinite(id)) : []));
       setQueue((JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[]).filter(t => t.source === "studio"));
       setPlaylists((JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]") as {id:string;name:string;tracks:Track[]}[]).map(p => ({...p, tracks:p.tracks.filter(t => t.source === "studio")})));
-      setFollowedArtists([]);
+      const savedFollows = JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]");
+      setFollowedArtists(Array.isArray(savedFollows) ? savedFollows.filter((name): name is string => typeof name === "string") : []);
       const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
       setHighQualityArtwork(preferences.highQuality !== false);
       setShowExplicitContent(preferences.explicitContent !== false);
@@ -323,6 +325,10 @@ export default function HomePage() {
   };
 
   const notify = (message:string) => { setToast(message); window.setTimeout(()=>setToast(""),3000); };
+  const removeOfflineDownload = async (track: Track) => {
+    await deleteOfflineBlob(track.trackId);
+    if (!offlineDownloads.has(track.trackId)) notify("Offline download removed from this device.");
+  };
   const downloadTrack = async (track:Track) => {
     if(track.allowDownloads===false){notify("The artist has disabled downloads for this release.");return;}
     if(offlineDownloads.has(track.trackId)){notify("This song is already saved for offline listening.");return;}
@@ -845,7 +851,7 @@ export default function HomePage() {
           <button onClick={()=>{setFollowedArtists(a=>a.includes(menuTrack.artistName)?a.filter(x=>x!==menuTrack.artistName):[...a,menuTrack.artistName]);setMenuTrack(null);notify("Artist follow preference saved on this device.");}}><UserPlus/> More from Artist · {followedArtists.includes(menuTrack.artistName)?"Following":"Follow"}</button>
           <button onClick={()=>addToQueue(menuTrack,true)}><ListPlus/> Play Next</button><button onClick={()=>addToQueue(menuTrack)}><ListOrdered/> Add to Queue</button>
           <button onClick={()=>{toggleLike(menuTrack.trackId);setMenuTrack(null);}}><Heart/> {liked.has(menuTrack.trackId)?"Unlike":"Like"}</button>
-          <button onClick={()=>void downloadTrack(menuTrack)} disabled={menuTrack.allowDownloads===false||offlineBusy===menuTrack.trackId}>{menuTrack.allowDownloads===false?"🔒 Downloads locked":offlineBusy===menuTrack.trackId?"Saving offline…":offlineDownloads.has(menuTrack.trackId)?"✓ Saved for offline listening":"⇩ Download for offline listening"}</button>
+          <button onClick={()=>{if(offlineDownloads.has(menuTrack.trackId)){void removeOfflineDownload(menuTrack);setMenuTrack(null);}else{void downloadTrack(menuTrack);}}} disabled={menuTrack.allowDownloads===false||offlineBusy===menuTrack.trackId}>{menuTrack.allowDownloads===false?"🔒 Downloads locked":offlineBusy===menuTrack.trackId?"Saving offline…":offlineDownloads.has(menuTrack.trackId)?"Remove offline download":"⇩ Download for offline listening"}</button>
           <button onClick={()=>addToPlaylist(menuTrack)}><Plus/> Add to Playlist</button>
           <button onClick={()=>{setQuery(menuTrack.artistName);setInput(menuTrack.artistName);setView("discover");setMenuTrack(null);}}><Radio/> See similar songs</button><button onClick={()=>{setQuery(menuTrack.artistName);setInput(menuTrack.artistName);setView("discover");setMenuTrack(null);}}><Album/> More from {menuTrack.artistName}</button>
           
@@ -869,7 +875,7 @@ export default function HomePage() {
             <div className="af-primary-actions">
               <button onClick={()=>addToPlaylist(current)}><ListPlus/><span>Playlist</span></button>
               <button onClick={()=>void shareTrack(current)}><Share2/><span>Share</span></button>
-              <button className={offlineDownloads.has(current.trackId)?"offline-saved":""} disabled={current.allowDownloads===false||offlineBusy===current.trackId} onClick={()=>void downloadTrack(current)}>{current.allowDownloads===false?<span>🔒</span>:<span>⇩</span>}<span>{current.allowDownloads===false?"Locked":offlineBusy===current.trackId?"Saving…":offlineDownloads.has(current.trackId)?"Saved offline":"Download"}</span></button>
+              <button className={offlineDownloads.has(current.trackId)?"offline-saved":""} disabled={current.allowDownloads===false||offlineBusy===current.trackId} onClick={()=>{if(offlineDownloads.has(current.trackId))void removeOfflineDownload(current);else void downloadTrack(current);}}>{current.allowDownloads===false?<span>🔒</span>:<span>⇩</span>}<span>{current.allowDownloads===false?"Locked":offlineBusy===current.trackId?"Saving…":offlineDownloads.has(current.trackId)?"Remove download":"Download"}</span></button>
               <button onClick={()=>setMenuTrack(current)}><MoreVertical/><span>More</span></button>
             </div>
             <div className="af-wave-wrap">
