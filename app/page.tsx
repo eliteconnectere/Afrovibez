@@ -720,7 +720,7 @@ export default function HomePage() {
           <div className="top-tag"><span className="live-dot" /> LIVE CATALOGUE</div>
         </header>
 
-        <div className="content">
+        <div className="content af-view-transition" key={view}>
           {view === "discover" && (
             <>
               <section className="hero">
