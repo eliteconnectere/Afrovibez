@@ -110,7 +110,6 @@ export default function HomePage() {
   const [commentReactions, setCommentReactions] = useState<Record<string,{likes:number;dislikes:number}>>({});
   const [expandedCommentThreads, setExpandedCommentThreads] = useState<Set<string>>(new Set());
   const [playerToolsOpen, setPlayerToolsOpen] = useState(false);
-  const [bassBoostEnabled, setBassBoostEnabled] = useState(false);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
   const sleepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
@@ -1116,7 +1115,7 @@ export default function HomePage() {
           <section className="af-tools-sheet" role="dialog" aria-modal="true" aria-label="Playback tools" onClick={e=>e.stopPropagation()}>
             <div className="af-tools-grid">
               <button onClick={()=>notify("Cast is not available in this browser yet.","warning","Cast unavailable")}><Radio/><span>Cast</span></button>
-              <button className={bassBoostEnabled?"active":""} onClick={()=>{setBassBoostEnabled(v=>!v);notify(!bassBoostEnabled?"Bass Boost enabled":"Bass Boost disabled");}}><Volume2/><span>Bass Boost</span></button>
+              <button onClick={()=>notify("Bass Boost needs the audio equalizer engine; it is not enabled yet.","warning","Bass Boost unavailable")}><Volume2/><span>Bass Boost</span></button>
               <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat enabled":"Repeat disabled");}}><Repeat/><span>Repeat</span></button>
               <button onClick={()=>{setPlayerToolsOpen(false);document.querySelector(".af-audiomod")?.scrollIntoView({behavior:"smooth",block:"center"});}}><Music2/><span>Audiomod</span></button>
               <button onClick={()=>{if(sleepTimerRef.current)clearTimeout(sleepTimerRef.current);if(sleepTimerMinutes){setSleepTimerMinutes(0);notify("Sleep timer cancelled.");}else{sleepTimerRef.current=setTimeout(()=>{audioRef.current?.pause();setPlaying(false);setSleepTimerMinutes(0);notify("Sleep timer stopped playback.","success");},30*60*1000);setSleepTimerMinutes(30);notify("Sleep timer set for 30 minutes.");}}}><Settings/><span>{sleepTimerMinutes ? "Sleep "+sleepTimerMinutes+"m" : "Sleep Timer"}</span></button>
