@@ -191,7 +191,7 @@ html[data-theme="dark"] .settings-footnote{background:#222a3b;color:#b6bdcd}
 .af-player-topbar strong{font:700 13px 'Space Grotesk';letter-spacing:1.4px}
 .af-player-art{position:relative;width:min(76vw,420px);aspect-ratio:1;margin:0 auto 23px;border-radius:18px;background-size:cover;background-position:center;display:grid;place-items:center;overflow:hidden;box-shadow:0 20px 55px #0008}
 .af-player-art:before{content:"";position:absolute;inset:0;background:#0c153b55;backdrop-filter:blur(18px)}
-.af-player-art img{position:relative;width:100%;height:100%;object-fit:contain;z-index:1}
+.af-player-art img{position:relative;width:100%;height:100%;object-fit:contain;z-index:1}\n.af-player-art img.af-artwork-rotating{animation:afArtworkSlowSpin 24s linear infinite;transform-origin:center center}\n@keyframes afArtworkSlowSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}\n@media(prefers-reduced-motion:reduce){.af-player-art img.af-artwork-rotating{animation:none}}
 .af-track-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px}
 .af-track-heading>div{min-width:0}
 .af-track-heading span{display:block;color:#c4cbe0;font-size:15px;margin-bottom:3px}
@@ -532,10 +532,7 @@ html[data-theme="dark"] .settings-confirm button:nth-child(2){background:#d93645
 
 /* Compact country selector on the Search screen */
 .search-title-row{display:flex;align-items:center;justify-content:space-between;gap:14px}
-.country-trigger{width:64px;height:52px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid #dce7f5;border-radius:10px;background:#fff;color:#1769d2;cursor:pointer}
-.country-trigger span{font-size:29px;line-height:1.1;display:inline-flex;align-items:center;justify-content:center;min-width:32px}
-.country-trigger svg{width:18px;height:18px;stroke-width:2.7;flex:0 0 auto}
-.country-trigger:focus-visible{outline:3px solid #1769d2;outline-offset:3px}
+.country-trigger{width:88px;min-width:88px;height:58px;flex:0 0 88px;display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:0 12px;border:1px solid #dce7f5;border-radius:10px;background:#fff;color:#1769d2;cursor:pointer}\n.country-trigger span{font-size:29px;line-height:1.1;display:inline-flex;align-items:center;justify-content:center;min-width:32px}\n.country-trigger .country-flag-image{width:34px;height:24px;flex:0 0 34px;object-fit:cover;border-radius:3px}\n.country-trigger svg{width:21px;height:21px;stroke-width:2.7;flex:0 0 21px}\n.country-trigger:focus-visible{outline:3px solid #1769d2;outline-offset:3px}
 .country-picker-backdrop{z-index:9999!important}
 .country-picker-backdrop{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(9,25,48,.48)}
 .country-picker{width:min(420px,100%);max-height:min(680px,85dvh);display:flex;flex-direction:column;overflow:hidden;border:1px solid #dce7f5;border-radius:18px;background:#fff;box-shadow:0 24px 70px rgba(9,25,48,.28);color:#173b72}
