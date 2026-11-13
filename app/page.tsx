@@ -800,12 +800,12 @@ export default function HomePage() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Search songs, artists, albums and genres…"
-              aria-label="Search music"
+              placeholder={t("Search songs, artists, albums and genres…")}
+              aria-label={t("Search")}
             />
-            <button type="submit">Search</button>
+            <button type="submit">{t("Search")}</button>
           </form>
-          <div className="top-tag"><span className="live-dot" /> LIVE CATALOGUE</div>
+          <div className="top-tag"><span className="live-dot" /> {t("LIVE CATALOGUE")}</div>
         </header>
 
         <div className="content af-view-transition" key={view}>
@@ -813,10 +813,10 @@ export default function HomePage() {
             <>
               <section className="hero">
                 <div className="hero-copy">
-                  <div className="eyebrow"><span /> THE SOUND OF AFRICA</div>
-                  <h1>Feel the rhythm.<br /><em>Find your vibe.</em></h1>
-                  <p>Discover music uploaded and approved by artists on AfroVibe Studio. Listen to complete songs and releases.</p>
-                  <a className="hero-button" href="#browse">Explore music <span>↗</span></a>
+                  <div className="eyebrow"><span /> {t("THE SOUND OF AFRICA")}</div>
+                  <h1>{t("Feel the rhythm.")}<br /><em>{t("Find your vibe.")}</em></h1>
+                  <p>{t("Discover full songs uploaded by AfroVibe artists.")}</p>
+                  <a className="hero-button" href="#browse">{t("Explore music")} <span>↗</span></a>
                 </div>
                 <div className="hero-art" aria-hidden="true">
                   <div className="orb orb-one" />
@@ -841,11 +841,11 @@ export default function HomePage() {
               <section className="section-block" id="browse">
                 <div className="section-heading">
                   <div>
-                    <div className="eyebrow dark">BROWSE ALL</div>
-                    <h2>Explore the catalogue</h2>
-                    <p>Only approved full-length releases from AfroVibe Studio appear here.</p>
+                    <div className="eyebrow dark">{t("BROWSE ALL")}</div>
+                    <h2>{t("Explore the catalogue")}</h2>
+                    <p>{t("Only approved full-length releases from AfroVibe Studio appear here.")}</p>
                   </div>
-                  <span className="results-label">{visibleTracks.length} RESULTS</span>
+                  <span className="results-label">{visibleTracks.length} {t("RESULTS")}</span>
                 </div>
                 <div className="chips">
                   {categories.map((c) => (
@@ -859,7 +859,7 @@ export default function HomePage() {
                       }}
                       className={"chip " + (category === c ? "selected" : "")}
                     >
-                      {c}
+                      {t(c)}
                     </button>
                   ))}
                 </div>
@@ -971,7 +971,7 @@ export default function HomePage() {
                 </div>
               </div>
               {offlineTracks.length > 0 && <section className="offline-library"><h3>Downloaded for offline listening</h3><p>These songs are stored on this device and can play without an internet connection.</p><div className="track-grid">{offlineTracks.map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div></section>}
-              {likedTracks.length > 0 && <section className="offline-library"><h3>Liked songs</h3><div className="track-grid">{likedTracks.map(track => <TrackCard key={track.trackId} track={track}/>)}</div></section>}
+              {likedTracks.length > 0 && <section className="offline-library"><h3>{t("Liked songs")}</h3><div className="track-grid">{likedTracks.map(track => <TrackCard key={track.trackId} track={track}/>)}</div></section>}
               {playlists.length > 0 && playlists.map(playlist => <section className="offline-library" key={playlist.id}><h3>{playlist.name}</h3><p>{playlist.tracks.length} {playlist.tracks.length === 1 ? "track" : "tracks"} · Saved on this device</p>{playlist.tracks.length ? <div className="track-grid">{playlist.tracks.map(track => <TrackCard key={track.trackId} track={track}/>)}</div> : <p>This playlist is empty.</p>}</section>)}
               {likedTracks.length === 0 && offlineTracks.length === 0 && playlists.length === 0 && <div className="bottom-callout"><div className="callout-icon"><ListMusic size={23}/></div><div><strong>Nothing saved yet</strong><p>Like a song, create a playlist or download a release to build your library.</p></div><span className="coming-label">ON THIS DEVICE</span></div>}
             </section>
