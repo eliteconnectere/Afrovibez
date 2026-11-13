@@ -5,7 +5,8 @@ import {
   Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward,
   Music2, Menu, X, ListMusic, ExternalLink, LoaderCircle, Settings, TrendingUp,
   Share2, Plus, BarChart3, MoreVertical, ListPlus, Radio, Info, UserPlus, ListOrdered,
-  Link2, MessageCircle, Send, Copy, Volume2, Repeat, Shuffle, Album, ChevronDown
+  Link2, MessageCircle, Send, Copy, Volume2, Repeat, Shuffle, Album, ChevronDown,
+  CheckCircle2, AlertTriangle, XCircle
 } from "lucide-react";
 
 type Track = {
@@ -97,7 +98,9 @@ export default function HomePage() {
   const [queue, setQueue] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
   const [followedArtists, setFollowedArtists] = useState<string[]>([]);
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState<{title:string;message:string;tone:"success"|"error"|"warning"|"info"} | null>(null);
+  const [appDialog, setAppDialog] = useState<{title:string;message:string;confirmLabel:string;tone:"danger"|"primary";input?:boolean;onConfirm:(value?:string)=>void} | null>(null);
+  const [dialogInput, setDialogInput] = useState("");
   const [storageReady, setStorageReady] = useState(false);
   const [highQualityArtwork, setHighQualityArtwork] = useState(true);
   const [showExplicitContent, setShowExplicitContent] = useState(true);
@@ -224,7 +227,7 @@ export default function HomePage() {
       localStorage.setItem("afrovibez.follows.v1", JSON.stringify(followedArtists));
       localStorage.setItem("afrovibez.searches.v1", JSON.stringify(recentSearches));
       localStorage.setItem("afrovibez.explore-country.v1", selectedCountry);
-    } catch { setToast("Browser storage is full; some changes may not persist."); }
+    } catch { notify("Some changes could not be saved on this device. Free up storage and try again.", "warning", "Storage is full"); }
   }, [liked, queue, playlists, followedArtists, recentSearches, selectedCountry, storageReady]);
 
   useEffect(() => {
@@ -317,7 +320,7 @@ export default function HomePage() {
     audio.addEventListener("ended", () => {
       if (repeatRef.current) {
         audio.currentTime = 0;
-        void audio.play().catch(() => setToast("This track could not be replayed."));
+        void audio.play().catch(() => notify("This track could not be replayed. Try playing it again.", "error", "Playback interrupted"));
         return;
       }
       try {
@@ -349,7 +352,7 @@ export default function HomePage() {
       setCurrentTime(0);
     });
     audio.addEventListener("pause", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(false); });
-    audio.addEventListener("error", () => { setPlaying(false); setToast("This uploaded track could not be played. Please try again."); });
+    audio.addEventListener("error", () => { setPlaying(false); notify("This track could not be played right now. Please try again.", "error", "Unable to play track"); });
     audio.addEventListener("play", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(true); });
     audio.addEventListener("timeupdate", () => {
       const now = audio.currentTime;
@@ -411,24 +414,23 @@ export default function HomePage() {
     }
   };
 
-  const notify = (message:string) => { setToast(message); window.setTimeout(()=>setToast(""),3000); };
-  const removeOfflineDownload = async (track: Track) => {
-    const confirmed = window.confirm(`Remove “${track.trackName}” by ${track.artistName} from your offline downloads on this device? This will not delete the artist’s original release.`);
-    if (!confirmed) return;
-    const removed = await deleteOfflineBlob(track.trackId);
-    notify(removed ? "Offline download removed from this device." : "Could not remove this offline download. Please try again.");
+  const notify = (message:string, tone:"success"|"error"|"warning"|"info"="success", title?:string) => {
+    const heading = title || (tone==="success" ? "All set" : tone==="error" ? "Something went wrong" : tone==="warning" ? "A quick heads-up" : "AfroVibez update");
+    setToast({title:heading,message,tone});
+    window.setTimeout(()=>setToast(current=>current?.message===message?null:current),3600);
   };
-  const downloadTrack = async (track:Track) => {
-    if(track.allowDownloads===false){notify("The artist has disabled downloads for this release.");return;}
-    if(offlineDownloads.has(track.trackId)){notify("This song is already saved for offline listening.");return;}
-    if(offlineBusy!==null){notify("Please wait for the current download to finish.");return;}
-    if(!track.audioUrl){notify("The full audio file is not available right now.");return;}
-    if(!navigator.onLine){notify("Connect to the internet before downloading this song.");return;}
-    if(!window.confirm(`Save “${track.trackName}” by ${track.artistName} for offline listening? The first download uses internet data. After it is saved, playback on this device can work without mobile data or Wi-Fi.`))return;
+  const openAppDialog = (options:{title:string;message:string;confirmLabel:string;tone?:"danger"|"primary";input?:boolean;onConfirm:(value?:string)=>void}) => {
+    setDialogInput("");
+    setAppDialog({...options,tone:options.tone||"primary"});
+  };
+  const removeOfflineDownload = async (track: Track) => {
+    openAppDialog({title:"Remove download?",message:"You won't be able to listen offline unless you download it again.",confirmLabel:"Remove",tone:"danger",onConfirm:()=>{void (async()=>{const removed=await deleteOfflineBlob(track.trackId);notify(removed?"Download removed":"We couldn't remove this download. Please try again.",removed?"success":"error",removed?"Removed from Downloads":"Couldn't remove download");})();}});
+  };
+  const startOfflineDownload = async (track:Track) => {
     setOfflineBusy(track.trackId);
     setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:0,total:null,percent:null});
     try{
-      const response=await fetch(track.audioUrl);
+      const response=await fetch(track.audioUrl!);
       if(!response.ok)throw new Error("Download could not start.");
       const headerLength=Number(response.headers.get("content-length"));
       const total=Number.isFinite(headerLength)&&headerLength>0?headerLength:null;
@@ -451,9 +453,17 @@ export default function HomePage() {
       await saveOfflineBlob(track,blob);
       setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));
       setOfflineTracks(prev=>prev.filter(item=>item.trackId!==track.trackId).concat({...track,audioUrl:undefined}));
-      notify("Saved for offline listening on this device.");
-    }catch(error:any){notify(error?.message||"Offline download failed. Please try again.");}
+      notify("Ready whenever you are. Find it in your Downloads.", "success", "Saved for offline listening");
+    }catch(error:any){notify(error?.message||"Your download couldn't be completed. Please try again.", "error", "Download failed");}
     finally{setOfflineBusy(null);setDownloadProgress(null);}
+  };
+  const downloadTrack = (track:Track) => {
+    if(track.allowDownloads===false){notify("Downloads aren't available for this release.", "warning", "Download unavailable");return;}
+    if(offlineDownloads.has(track.trackId)){notify("This song is already in your offline Downloads.", "info", "Already downloaded");return;}
+    if(offlineBusy!==null){notify("One download is already in progress. Try again when it finishes.", "info", "Download in progress");return;}
+    if(!track.audioUrl){notify("The full audio file isn't available right now.", "error", "Audio unavailable");return;}
+    if(!navigator.onLine){notify("Connect to the internet before downloading this song.", "warning", "You're offline");return;}
+    openAppDialog({title:"Save for offline?",message:"This song will be available in your Downloads, even when you're offline. The first download uses internet data.",confirmLabel:"Download",onConfirm:()=>{void startOfflineDownload(track);}});
   };
   const openArtistProfile = (track:Track) => {if(!track.artistId||!artistProfiles[track.artistId]){notify("Artist details are not available right now.");return;}setArtistProfileOpen(true);};
   const addToQueue = (track:Track, next=false) => {
@@ -461,10 +471,7 @@ export default function HomePage() {
     setMenuTrack(null); notify(next ? "Added to play next." : "Added to queue.");
   };
   const addToPlaylist = (track:Track) => {
-    const name=window.prompt("Name your playlist");
-    if(!name?.trim()) return;
-    setPlaylists(items=>{const found=items.find(p=>p.name.toLowerCase()===name.trim().toLowerCase());return found?items.map(p=>p.id===found.id?{...p,tracks:[...p.tracks.filter(t=>t.trackId!==track.trackId),track]}:p):[...items,{id:String(Date.now()),name:name.trim(),tracks:[track]}];});
-    setMenuTrack(null);notify("Playlist saved on this device.");
+    openAppDialog({title:"Create a playlist",message:"Give your playlist a name. You can add more songs whenever you like.",confirmLabel:"Save playlist",input:true,onConfirm:(value)=>{const name=(value||"").trim();if(!name){notify("Enter a name for your playlist first.","warning","Playlist name needed");return;}setPlaylists(items=>{const found=items.find(p=>p.name.toLowerCase()===name.toLowerCase());return found?items.map(p=>p.id===found.id?{...p,tracks:[...p.tracks.filter(t=>t.trackId!==track.trackId),track]}:p):[...items,{id:String(Date.now()),name,tracks:[track]}];});setMenuTrack(null);notify("Your playlist is ready in Library.","success","Playlist saved");}});
   };
   const toggleLike = (id: number) => {
     setLiked((prev) => {
@@ -940,7 +947,19 @@ export default function HomePage() {
           <style>{'@keyframes afDownloadSpin{to{transform:rotate(360deg)}}@keyframes afDownloadPulse{0%,100%{opacity:.45}50%{opacity:1}}'}</style>
         </div>
       )}
-      {toast && <div className="af-toast" role="status">{toast}</div>}
+      {toast && <div className={`af-toast af-toast-${toast.tone}`} role={toast.tone==="error"?"alert":"status"} aria-live={toast.tone==="error"?"assertive":"polite"}>
+        <span className="af-toast-icon" aria-hidden="true">{toast.tone==="success"?<CheckCircle2 size={21}/>:toast.tone==="error"?<XCircle size={21}/>:toast.tone==="warning"?<AlertTriangle size={21}/>:<Info size={21}/>}</span>
+        <span className="af-toast-copy"><strong>{toast.title}</strong><span>{toast.message}</span></span>
+        <button type="button" className="af-toast-close" onClick={()=>setToast(null)} aria-label="Dismiss notification"><X size={17}/></button>
+      </div>}
+      {appDialog && <div className="af-dialog-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setAppDialog(null);}}>
+        <section className="af-dialog" role="dialog" aria-modal="true" aria-labelledby="af-dialog-title">
+          <div className={`af-dialog-symbol ${appDialog.tone}`}>{appDialog.tone==="danger"?<AlertTriangle size={25}/>:appDialog.input?<Plus size={25}/>:<Info size={25}/>}</div>
+          <div className="af-dialog-kicker">AFROVIBEZ</div><h2 id="af-dialog-title">{appDialog.title}</h2><p>{appDialog.message}</p>
+          {appDialog.input && <input className="af-dialog-input" autoFocus maxLength={48} value={dialogInput} onChange={e=>setDialogInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();const action=appDialog.onConfirm;const value=dialogInput;setAppDialog(null);action(value);}}} placeholder="Playlist name" aria-label="Playlist name"/>}
+          <div className="af-dialog-actions"><button type="button" className="af-dialog-cancel" onClick={()=>setAppDialog(null)}>Cancel</button><button type="button" className={`af-dialog-confirm ${appDialog.tone}`} onClick={()=>{const action=appDialog.onConfirm;const value=dialogInput;setAppDialog(null);action(value);}}>{appDialog.confirmLabel}</button></div>
+        </section>
+      </div>}
       {countryPickerOpen && <div className="country-picker-backdrop" role="presentation" onClick={()=>setCountryPickerOpen(false)}><section className="country-picker" role="dialog" aria-modal="true" aria-label="Select music country" onClick={e=>e.stopPropagation()}><header><div><small>EXPLORE MUSIC BY REGION</small><h2>Select a country</h2></div><button type="button" onClick={()=>setCountryPickerOpen(false)} aria-label="Close country selector"><X size={20}/></button></header><input className="country-picker-search" value={countrySearch} onChange={e=>setCountrySearch(e.target.value)} placeholder="Search countries…" aria-label="Search countries"/><div className="country-picker-list">{countryOptions.filter(country=>country.name.toLowerCase().includes(countrySearch.trim().toLowerCase())).map(country=><button type="button" key={country.code} className={selectedCountry===country.code?"selected":""} onClick={()=>{setSelectedCountry(country.code);localStorage.setItem("afrovibez.explore-country.v1",country.code);setCountryPickerOpen(false);notify(`Music region set to ${country.name}.`);}}><span className="country-option-flag">{country.flag}</span><span>{country.name}</span>{selectedCountry===country.code&&<span className="country-option-check">✓</span>}</button>)}</div></section></div>}
 
       {menuTrack && <div className="track-menu-backdrop" onClick={()=>setMenuTrack(null)}><section className="track-menu-sheet" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
