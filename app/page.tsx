@@ -497,7 +497,7 @@ export default function HomePage() {
     .filter((track, index, all) => all.findIndex(item => item.trackId === track.trackId) === index)
     .filter((t) => {
       const term = query.trim().toLowerCase();
-      return !term || `${t.trackName} ${t.artistName} ${t.primaryGenreName || ""}`.toLowerCase().includes(term);
+      return !term || `${t.trackName} ${t.artistName} ${t.collectionName || ""} ${t.primaryGenreName || ""}`.toLowerCase().includes(term);
     })
     .filter(
       (t) => (showExplicitContent || !isExplicit(t)) && (
@@ -684,7 +684,7 @@ export default function HomePage() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Search uploaded songs and artists…"
+              placeholder="Search songs, artists, albums and genres…"
               aria-label="Search music"
             />
             <button type="submit">Search</button>
@@ -943,7 +943,7 @@ export default function HomePage() {
               <div><small>NOW PLAYING</small><strong>AFROVIBEZ</strong></div>
               <button onClick={() => {setView("queue");setPlayerOpen(false);}} aria-label={`Open queue, ${queue.length} tracks`}><ListMusic/></button>
             </header>
-            <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(12,20,54,.28),#0b1024 95%),url(${current.artworkUrl100?.replace("100x100","600x600")})`}}>
+            <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.35) 95%),url(${current.artworkUrl100?.replace("100x100","600x600")})`}}>
               <img src={current.artworkUrl100?.replace("100x100","600x600")} alt={`Album artwork for ${current.trackName}`}/>
             </div>
             <div className="af-track-heading">
