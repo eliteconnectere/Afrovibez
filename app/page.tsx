@@ -799,8 +799,7 @@ export default function HomePage() {
     setBassLevel(0); setBassBoostEnabled(false); setDistortionEnabled(false);
     setReverbEnabled(false); setDelayEnabled(false); setPitch(0); setLowPass(0); setHighPass(0); setPlaySpeed(1);
     if (audioRef.current) audioRef.current.playbackRate = 1;
-    const context = audioContextRef.current;
-    if (context && bassFilterRef.current) bassFilterRef.current.gain.setTargetAtTime(0, context.currentTime, 0.06);
+    void updateAudioEffects({bass:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0}).catch(()=>{});
   };
 
   const chooseAudioPreset = (preset:string) => {
@@ -1301,10 +1300,10 @@ export default function HomePage() {
             <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{const v=Number(e.target.value);setPlaySpeed(v);if(audioRef.current)audioRef.current.playbackRate=v*Math.pow(2,pitch/12);}}/><b>{Math.round(playSpeed*100)}%</b></div></div>
             <div className="af-audiomod-toggle"><strong>Bass Boost</strong><input aria-label="Bass Boost" type="checkbox" checked={bassLevel>0} onChange={e=>void setBass(e.target.checked?65:0)}/></div>
             <div className="af-audiomod-control"><strong>Bass level</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
-            {([{name:"Distort",value:distortionEnabled,set:setDistortionEnabled},{name:"Reverb",value:reverbEnabled,set:setReverbEnabled},{name:"Delay",value:delayEnabled,set:setDelayEnabled}] as const).map(effect=><div className="af-audiomod-toggle" key={effect.name}><strong>{effect.name}</strong><input type="checkbox" aria-label={effect.name} checked={effect.value} onChange={e=>effect.set(e.target.checked)}/></div>)}
+            {([{name:"Distort",value:distortionEnabled,set:setDistortionEnabled},{name:"Reverb",value:reverbEnabled,set:setReverbEnabled},{name:"Delay",value:delayEnabled,set:setDelayEnabled}] as const).map(effect=><div className="af-audiomod-toggle" key={effect.name}><strong>{effect.name}</strong><input type="checkbox" aria-label={effect.name} checked={effect.value} onChange={e=>{const enabled=e.target.checked;effect.set(enabled);void updateAudioEffects(effect.name==="Distort"?{distortion:enabled}:effect.name==="Reverb"?{reverb:enabled}:{delay:enabled}).catch(error=>notify(error instanceof Error?error.message:"Effect unavailable.","warning"));}}/></div>)}
             <div className="af-audiomod-control"><strong>Pitch</strong><div className="af-range-row"><input type="range" min="-12" max="12" value={pitch} onChange={e=>{const v=Number(e.target.value);setPitch(v);if(audioRef.current)audioRef.current.playbackRate=playSpeed*Math.pow(2,v/12);}}/><b>{pitch}</b></div></div>
-            <div className="af-audiomod-control"><strong>Low Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={lowPass} onChange={e=>setLowPass(Number(e.target.value))}/><b>{lowPass}</b></div></div>
-            <div className="af-audiomod-control"><strong>High Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={highPass} onChange={e=>setHighPass(Number(e.target.value))}/><b>{highPass}</b></div></div>
+            <div className="af-audiomod-control"><strong>Low Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={lowPass} onChange={e=>{const value=Number(e.target.value);setLowPass(value);void updateAudioEffects({lowPass:value}).catch(error=>notify(error instanceof Error?error.message:"Filter unavailable.","warning"));}}/><b>{lowPass}</b></div></div>
+            <div className="af-audiomod-control"><strong>High Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={highPass} onChange={e=>{const value=Number(e.target.value);setHighPass(value);void updateAudioEffects({highPass:value}).catch(error=>notify(error instanceof Error?error.message:"Filter unavailable.","warning"));}}/><b>{highPass}</b></div></div>
             <button className="af-audiomod-share" onClick={()=>{setAudioModOpen(false);notify("Your sound settings are applied to the current track.");}}>Done</button>
           </section>
         </div>
