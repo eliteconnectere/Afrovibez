@@ -436,3 +436,14 @@ html[data-theme="dark"] .settings-confirm button:nth-child(2){background:#d93645
 .offline-library{margin:20px 0 28px;padding:18px;border:1px solid #cbdcf3;border-radius:16px;background:#f1f6ff}
 .offline-library h3{margin:0 0 5px;color:#123d70;font-size:18px}
 .offline-library p{margin:0 0 14px;color:#52647b;font-size:13px}
+
+/* Strict AfroVibez player controls: white, blue and red only. */
+.af-track-heading>button,.af-primary-actions button svg{color:#e3293f}
+.af-track-heading>button.is-liked{color:#e3293f;border-color:#e3293f}
+.af-transport button{color:#1769d2}
+.af-transport button.active{color:#1769d2}
+.af-transport button:nth-child(2),.af-transport button:nth-child(4),.af-transport button:nth-child(5){color:#1769d2}
+.af-transport .af-play-toggle{background:#e3293f;border-color:#fff;color:#fff}
+.af-repeat-row button{color:#1769d2}
+.af-repeat-row button.active{border-color:#1769d2;color:#1769d2}
+.af-section-title label input:checked+span{background:#1769d2}
