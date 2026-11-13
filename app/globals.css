@@ -726,3 +726,10 @@ html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
 .af-tools-grid button svg{color:#1769d2!important}
 .af-tools-close{background:#e3293f!important;color:#fff!important;font:700 14px 'DM Sans',sans-serif!important}
 .af-view-replies{color:#1769d2!important}
+
+.af-sleep-sheet{width:min(100%,520px);background:#fff;color:#173b72;border:1px solid #dce7f5;border-radius:22px;padding:22px;box-shadow:0 22px 65px rgba(23,59,114,.2);animation:af-tools-rise .22s ease-out}
+.af-sleep-heading{display:grid;gap:6px;margin-bottom:18px}.af-sleep-heading strong{font:800 21px 'DM Sans',sans-serif;color:#173b72}.af-sleep-heading span{font:500 12px 'DM Sans',sans-serif;color:#627a98}
+.af-sleep-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.af-sleep-options button{min-height:48px;border:1px solid #d8e5f5;border-radius:13px;background:#f3f7fd;color:#1769d2;font:700 13px 'DM Sans',sans-serif}
+.af-sleep-options button.selected{background:#fff0f2;border-color:#e3293f;color:#e3293f}
+.af-sleep-actions{display:flex;gap:10px;margin-top:18px}.af-sleep-actions button{flex:1;min-height:46px;border:0;border-radius:13px;background:#e3293f;color:#fff;font:700 13px 'DM Sans',sans-serif}
