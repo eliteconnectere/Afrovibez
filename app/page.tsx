@@ -225,7 +225,7 @@ export default function HomePage() {
       localStorage.setItem("afrovibez.searches.v1", JSON.stringify(recentSearches));
       localStorage.setItem("afrovibez.explore-country.v1", selectedCountry);
     } catch { setToast("Browser storage is full; some changes may not persist."); }
-  }, [liked, queue, playlists, followedArtists, recentSearches, storageReady]);
+  }, [liked, queue, playlists, followedArtists, recentSearches, selectedCountry, storageReady]);
 
   useEffect(() => {
     try {
