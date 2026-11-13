@@ -931,21 +931,37 @@ export default function HomePage() {
         <div className="content af-view-transition" key={view}>
           {view === "discover" && (
             <>
-              <section className="hero">
-                <div className="hero-copy">
-                  <div className="eyebrow"><span /> {t("THE SOUND OF AFRICA")}</div>
-                  <h1>{t("Feel the rhythm.")}<br /><em>{t("Find your vibe.")}</em></h1>
-                  <p>{t("Discover full songs uploaded by AfroVibe artists.")}</p>
-                  <a className="hero-button" href="#browse">{t("Explore music")} <span>↗</span></a>
+              <section className="discovery-picks" aria-labelledby="discovery-picks-title">
+                <div className="discovery-picks-heading">
+                  <div>
+                    <span className="eyebrow dark">{t("DISCOVER")}</span>
+                    <h2 id="discovery-picks-title">{t("Find something new")}</h2>
+                  </div>
+                  <button className="discovery-see-all" onClick={() => { setView("search"); setMobileNav(false); }}>
+                    {t("See all")} <ChevronRight size={19} />
+                  </button>
                 </div>
-                <div className="hero-art" aria-hidden="true">
-                  <div className="orb orb-one" />
-                  <div className="orb orb-two" />
-                  <div className="vinyl"><div className="vinyl-label"><Disc3 size={54} /></div></div>
-                  <div className="sound-wave"><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /><i /></div>
-                  <span className="art-caption">AFRICAN SOUND. GLOBAL VIBE.</span>
-                </div>
-                <div className="hero-bottom"><span>01 / DISCOVER</span><span>MADE FOR THE RHYTHM</span></div>
+                {loading ? (
+                  <div className="discovery-picks-loading"><LoaderCircle className="spin" size={20} /> {t("Loading music…")}</div>
+                ) : visibleTracks.length ? (
+                  <div className="discovery-picks-list">
+                    {visibleTracks.slice(0, 4).map((track, index) => (
+                      <article className="discovery-pick" key={track.trackId}>
+                        <button className="discovery-pick-main" onClick={() => void playTrack(track)} disabled={!track.audioUrl && !offlineDownloads.has(track.trackId)}>
+                          <img src={artworkUrl(track, "100x100", "100x100")} alt="" loading={index < 2 ? "eager" : "lazy"} />
+                          <span className="discovery-pick-copy">
+                            <strong title={track.trackName}>{track.trackName}</strong>
+                            <span>{track.artistName}</span>
+                            {track.featuredArtists?.length ? <small>Feat. {track.featuredArtists.join(", ")}</small> : null}
+                          </span>
+                        </button>
+                        <button className="icon-btn discovery-pick-more" onClick={() => setMenuTrack(track)} aria-label={t("More track options")}><MoreVertical size={20} /></button>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="row-empty">{t("No approved tracks are available yet. New releases will appear here.")}</div>
+                )}
               </section>
 
               {sectionsConfig.map((s) => (
