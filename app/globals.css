@@ -571,3 +571,49 @@ html[data-theme="dark"] .settings-confirm button:nth-child(2){background:#d93645
 html[data-theme="dark"] .af-toast{background:#17213b!important;color:#f5f6fb!important;border-color:#344463!important}html[data-theme="dark"] .af-toast-copy strong{color:#f5f6fb}html[data-theme="dark"] .af-toast-copy>span{color:#b5bfd8}html[data-theme="dark"] .af-toast-close{background:#293553;color:#d7e0f4}
 html[data-theme="dark"] .af-dialog{background:#17213b;color:#f5f6fb;border-color:#344463}html[data-theme="dark"] .af-dialog h2{color:#f5f6fb}html[data-theme="dark"] .af-dialog p{color:#b5bfd8}html[data-theme="dark"] .af-dialog-input{background:#10182d;color:#f5f6fb;border-color:#394969}html[data-theme="dark"] .af-dialog-cancel{background:#202d4c;color:#d7e0f4;border-color:#394969}
 @media(max-width:700px){.af-toast{bottom:calc(83px + env(safe-area-inset-bottom))!important}.af-dialog{padding:24px 19px 19px;border-radius:20px}.af-dialog h2{font-size:21px}}
+
+
+/* Interaction polish: consistent transitions, flag geometry and artist profile detail. */
+.country-trigger{gap:7px;overflow:hidden}
+.country-trigger .country-flag-image{display:block;width:25px;height:18px;flex:0 0 25px;object-fit:cover;border-radius:2px;line-height:0;box-shadow:0 0 0 1px rgba(23,59,114,.12)}
+.country-option-flag{display:block;width:25px;height:19px;flex:0 0 25px;object-fit:cover;border-radius:2px;box-shadow:0 0 0 1px rgba(23,59,114,.12)}
+.country-picker-list button{min-height:44px}
+.artist-inline-link{display:block;max-width:100%;padding:2px 0;border:0;background:transparent;color:#627a98;text-align:left;font:inherit;font-size:inherit;cursor:pointer;text-decoration:underline;text-decoration-color:transparent;text-underline-offset:3px;transition:color .18s ease,text-decoration-color .18s ease}
+.artist-inline-link:hover,.artist-inline-link:focus-visible{color:#e3293f;text-decoration-color:#e3293f}
+.artist-profile-backdrop{animation:afProfileFade .2s ease-out}
+.artist-profile-sheet{animation:afProfileRise .26s cubic-bezier(.2,.8,.2,1);overscroll-behavior:contain}
+.artist-profile-hero{text-align:center;padding-top:4px}
+.artist-profile-hero .artist-profile-avatar{margin:0 auto 15px}
+.artist-profile-follow{min-width:156px;min-height:43px;margin:14px auto 0;padding:0 20px;border:1px solid #1769d2;border-radius:999px;background:#1769d2;color:#fff;font:750 12px 'DM Sans',sans-serif;cursor:pointer;transition:transform .16s ease,background .18s ease,box-shadow .18s ease}
+.artist-profile-follow:active{transform:scale(.97)}
+.artist-profile-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:23px 0 8px}
+.artist-profile-stats>div{display:flex;min-width:0;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:13px 7px;border:1px solid #dce7f5;border-radius:13px;background:#f7faff;text-align:center}
+.artist-profile-stats strong{font:750 21px 'Space Grotesk',sans-serif;color:#173b72}
+.artist-profile-stats span{font:700 10px 'DM Sans',sans-serif;color:#526782}
+.artist-profile-stats small{font:500 9px/1.35 'DM Sans',sans-serif;color:#8796aa}
+.artist-profile-discography{margin-top:23px}
+.artist-profile-section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.artist-profile-section-heading h3{margin:0;font:750 17px 'Space Grotesk',sans-serif;color:#173b72}
+.artist-profile-section-heading>span{font:650 10px 'DM Sans',sans-serif;color:#627a98}
+.artist-release-row{display:flex;width:100%;align-items:center;gap:12px;padding:9px 2px;border:0;border-bottom:1px solid #e7edf6;background:transparent;text-align:left;cursor:pointer}
+.artist-release-row img{width:48px;height:48px;flex:0 0 48px;object-fit:cover;border-radius:9px}
+.artist-release-row>span{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px}
+.artist-release-row strong{overflow:hidden;color:#173b72;font:700 12px 'DM Sans',sans-serif;text-overflow:ellipsis;white-space:nowrap}
+.artist-release-row small{color:#627a98;font:500 10px 'DM Sans',sans-serif}
+.artist-release-row>svg{flex:0 0 auto;color:#e3293f}
+.artist-profile-empty,.artist-profile-sync-note{color:#627a98;font:500 11px/1.6 'DM Sans',sans-serif}
+.artist-profile-sync-note{margin:18px 0 0;padding:12px;border-radius:10px;background:#f3f7fc}
+@keyframes afProfileFade{from{opacity:0}to{opacity:1}}
+@keyframes afProfileRise{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+.sidebar{transition:transform .26s cubic-bezier(.2,.8,.2,1)}
+.nav-item,.mobile-tabbar button,.track-card,.row-card,.chart-row,.country-picker-list button{transition:background-color .18s ease,color .18s ease,border-color .18s ease,transform .18s ease}
+.track-card:active,.row-card:active,.chart-row:active{transform:scale(.99)}
+button:focus-visible,a:focus-visible,[role="button"]:focus-visible{outline:3px solid rgba(23,105,210,.55);outline-offset:3px}
+html{scroll-behavior:smooth}
+@media(max-width:600px){.artist-profile-stats{gap:6px}.artist-profile-stats>div{padding:11px 4px}.artist-profile-stats strong{font-size:19px}.artist-profile-stats span{font-size:9px}.artist-profile-stats small{font-size:8px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+html[data-theme="dark"] .artist-profile-stats>div{background:#17213b;border-color:#394969}
+html[data-theme="dark"] .artist-profile-stats strong,html[data-theme="dark"] .artist-profile-section-heading h3,html[data-theme="dark"] .artist-release-row strong{color:#f5f6fb}
+html[data-theme="dark"] .artist-profile-stats span,html[data-theme="dark"] .artist-profile-stats small,html[data-theme="dark"] .artist-release-row small,html[data-theme="dark"] .artist-profile-sync-note{color:#b5bfd8}
+html[data-theme="dark"] .artist-profile-sync-note{background:#202d4c}
+html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
