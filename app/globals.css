@@ -671,3 +671,6 @@ html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
 .af-comment-more{border:0;background:transparent;color:inherit;font-size:23px;line-height:1;cursor:pointer}
 .af-comments-empty{padding:16px 4px;font-size:13px;opacity:.65}
 @media(max-width:600px){.af-queue-row{gap:10px;padding:11px 3px}.af-queue-row .chart-cover{width:58px;height:58px;flex-basis:58px}.af-queue-row .chart-info strong{font-size:14px}.af-comment{gap:9px}.af-comment-avatar{width:34px;height:34px;flex-basis:34px}}
+
+/* Expandable comment threads */
+.af-comment-thread{display:grid;gap:8px;margin-top:9px;padding-left:12px;border-left:2px solid #e6ebf4}.af-view-replies{justify-self:start;border:0;background:transparent;color:var(--blue);font:700 11px 'DM Sans';padding:5px 0;cursor:pointer}.af-comment-reply small{display:block;color:#9aa4b4;font-size:9px;margin-top:4px}
