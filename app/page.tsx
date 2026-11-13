@@ -102,6 +102,12 @@ export default function HomePage() {
   const [mobileNav, setMobileNav] = useState(false);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
   const [queue, setQueue] = useState<Track[]>([]);
+  const [queueDragIndex, setQueueDragIndex] = useState<number | null>(null);
+  const [trackComments, setTrackComments] = useState<any[]>([]);
+  const [commentDraft, setCommentDraft] = useState("");
+  const [replyToComment, setReplyToComment] = useState<string | null>(null);
+  const [commentBusy, setCommentBusy] = useState(false);
+  const [commentReactions, setCommentReactions] = useState<Record<string,{likes:number;dislikes:number}>>({});
   const [playlists, setPlaylists] = useState<{id:string;name:string;tracks:Track[]}[]>([]);
   const [followedArtists, setFollowedArtists] = useState<string[]>([]);
   const [followedArtistIds, setFollowedArtistIds] = useState<string[]>([]);
@@ -258,6 +264,7 @@ export default function HomePage() {
   }, [fetchTracks]);
 
   useEffect(() => { document.documentElement.lang = language; }, [language]);
+  useEffect(() => { if(playerOpen&&current) void loadTrackComments(current); }, [playerOpen,current?.studioTrackId]);
 
   useEffect(() => {
     if("serviceWorker" in navigator){void navigator.serviceWorker.register("/sw.js").catch(error=>console.warn("AfroVibez offline app shell registration failed:",error));}
@@ -668,6 +675,24 @@ export default function HomePage() {
     notify(mode === "normal" ? "Original speed" : `${mode === "sped" ? "Sped Up" : mode === "slowed" ? "Slowed" : mode === "nightcore" ? "Nightcore" : "Daycore"} mode enabled`);
   };
 
+  const moveQueuedTrack = (from:number,to:number) => {
+    if(from===to||from<0||to<0||from>=queue.length||to>=queue.length)return;
+    setQueue(previous=>{const next=[...previous];const [item]=next.splice(from,1);next.splice(to,0,item);localStorage.setItem("afrovibez.queue.v1",JSON.stringify(next));return next;});setQueueDragIndex(null);
+  };
+  const loadTrackComments = async (track:Track) => {
+    if(!track.studioTrackId){setTrackComments([]);return;}
+    const base=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;if(!base||!key)return;
+    try{const response=await fetch(`${base}/rest/v1/listener_track_comments?track_id=eq.${track.studioTrackId}&select=id,user_id,parent_id,display_name,body,created_at&order=created_at.asc`,{headers:{apikey:key}});if(!response.ok)throw new Error("Comments could not be loaded.");const rows=await response.json();setTrackComments(rows);const ids=rows.map((r:any)=>r.id);if(ids.length){const token=await ensureListenerAccessToken();const rr=await fetch(`${base}/rest/v1/listener_comment_reactions?comment_id=in.(${ids.join(",")})&select=comment_id,reaction`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});if(rr.ok){const counts:Record<string,{likes:number;dislikes:number}>={};for(const r of await rr.json()){counts[r.comment_id]??={likes:0,dislikes:0};if(r.reaction==="like")counts[r.comment_id].likes++;else counts[r.comment_id].dislikes++;}setCommentReactions(counts);}}}catch(e){console.warn("Comments unavailable",e);}
+  };
+  const submitTrackComment = async () => {
+    if(!current||!commentDraft.trim()||commentBusy)return;if(!current.studioTrackId){notify("Comments are available on AfroVibe Studio releases.","warning");return;}
+    const base=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;if(!base||!key)return;setCommentBusy(true);
+    try{const token=await ensureListenerAccessToken();const ur=await fetch(`${base}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});if(!ur.ok)throw new Error("Sign in to comment.");const user=await ur.json();const name=String(user.user_metadata?.display_name||user.user_metadata?.full_name||user.email?.split("@")[0]||"Listener").slice(0,60);const r=await fetch(`${base}/rest/v1/listener_track_comments`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({track_id:current.studioTrackId,user_id:user.id,parent_id:replyToComment,display_name:name,body:commentDraft.trim()})});if(!r.ok)throw new Error(await r.text());setCommentDraft("");setReplyToComment(null);await loadTrackComments(current);notify("Comment posted.");}catch(e:any){notify(e?.message||"Could not post comment.","error");}finally{setCommentBusy(false);}
+  };
+  const reactToComment = async (id:string,reaction:"like"|"dislike") => {
+    const base=process.env.NEXT_PUBLIC_SUPABASE_URL,key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;if(!base||!key)return;try{const token=await ensureListenerAccessToken();const ur=await fetch(`${base}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});if(!ur.ok)throw new Error("Sign in to react.");const user=await ur.json();const r=await fetch(`${base}/rest/v1/listener_comment_reactions`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({comment_id:id,user_id:user.id,reaction})});if(!r.ok)throw new Error(await r.text());if(current)await loadTrackComments(current);}catch(e:any){notify(e?.message||"Could not save reaction.","error");}
+  };
+
   const seek = (value: number) => {
     if (audioRef.current) {
       audioRef.current.currentTime = value;
@@ -973,7 +998,7 @@ export default function HomePage() {
 
           {view === "queue" && (
             <section className="library-view"><div className="section-heading"><div><div className="eyebrow dark">UP NEXT</div><h2>Your queue</h2><p>{queue.length} tracks waiting.</p></div></div>
-              {queue.length ? <div className="charts-list">{queue.map((t,i)=><article className="chart-row" key={t.trackId}><span className="rank">{i+1}</span><div className="chart-cover"><img src={t.artworkUrl100} alt=""/></div><div className="chart-info"><strong>{t.trackName}</strong><span>{t.artistName}</span></div><button className="icon-btn" onClick={()=>void playTrack(t)}><Play size={16}/></button><button className="icon-btn" onClick={()=>setQueue(q=>q.filter(x=>x.trackId!==t.trackId))}><X size={16}/></button></article>)}</div>:<div className="bottom-callout"><strong>Your queue is empty</strong><p>Use a song’s options menu to add tracks.</p></div>}
+              {queue.length ? <div className="charts-list af-queue-list">{queue.map((t,i)=><article className={`chart-row af-queue-row ${queueDragIndex===i?"is-dragging":""}`} key={t.trackId} data-queue-index={i} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(queueDragIndex!==null)moveQueuedTrack(queueDragIndex,i);}}><div className="chart-cover"><img src={t.artworkUrl100} alt=""/></div><div className="chart-info" onClick={()=>void playTrack(t)}><strong>{t.trackName}</strong><span>{t.artistName}</span></div><button className="icon-btn" aria-label="More song options" onClick={()=>setMenuTrack(t)}><MoreVertical size={20}/></button><button className="af-queue-drag" draggable onDragStart={()=>setQueueDragIndex(i)} onDragEnd={()=>setQueueDragIndex(null)} onTouchStart={()=>setQueueDragIndex(i)} onTouchEnd={e=>{const touch=e.changedTouches[0];const target=document.elementFromPoint(touch.clientX,touch.clientY)?.closest("[data-queue-index]") as HTMLElement|null;const to=target?Number(target.dataset.queueIndex):-1;if(queueDragIndex!==null&&to>=0)moveQueuedTrack(queueDragIndex,to);else setQueueDragIndex(null);}} aria-label={`Reorder ${t.trackName}`}><span/><span/><span/></button></article>)}</div>:<div className="bottom-callout"><strong>Your queue is empty</strong><p>Use a song’s options menu to add tracks.</p></div>}
             </section>
           )}
 
@@ -1134,6 +1159,7 @@ export default function HomePage() {
               <div className="af-artist-row"><button className="af-artist-name-link" onClick={()=>openArtistProfile(current)}><div className="af-artist-avatar">{current.artistId && artistProfiles[current.artistId]?.avatarUrl ? <img src={artistProfiles[current.artistId].avatarUrl} alt="" /> : current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong></button><button onClick={()=>current.artistId&&void toggleArtistFollow(current.artistId,current.artistName)}>{current.artistId&&followedArtistIds.includes(current.artistId)?"FOLLOWING":"FOLLOW"}</button></div>
               <p>{current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
             </section>
+            <section className="af-comments-section"><div className="af-section-title"><strong>Comments</strong><span>{trackComments.length} {trackComments.length===1?"comment":"comments"}</span></div><div className="af-comment-compose"><div className="af-comment-avatar">Y</div><input value={commentDraft} maxLength={2000} onChange={e=>setCommentDraft(e.target.value)} placeholder={replyToComment?"Write a reply…":"Tell the artist what you think!"} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();void submitTrackComment();}}}/><button disabled={!commentDraft.trim()||commentBusy} onClick={()=>void submitTrackComment()}>{commentBusy?"…":replyToComment?"Reply":"Post"}</button></div>{replyToComment&&<button className="af-comment-cancel-reply" onClick={()=>setReplyToComment(null)}>Cancel reply</button>}<div className="af-comments-list">{trackComments.filter((c:any)=>!c.parent_id).map((c:any)=><article className="af-comment" key={c.id}><div className="af-comment-avatar">{String(c.display_name||"L").slice(0,1).toUpperCase()}</div><div className="af-comment-body"><strong>{c.display_name}</strong><p>{c.body}</p><div className="af-comment-actions"><button onClick={()=>void reactToComment(c.id,"like")}>♥ {commentReactions[c.id]?.likes||0}</button><button onClick={()=>void reactToComment(c.id,"dislike")}>▾ {commentReactions[c.id]?.dislikes||0}</button><button onClick={()=>{setReplyToComment(c.id);setCommentDraft("");}}>REPLY</button></div>{trackComments.filter((r:any)=>r.parent_id===c.id).map((r:any)=><div className="af-comment-reply" key={r.id}><strong>{r.display_name}</strong><p>{r.body}</p></div>)}</div><button className="af-comment-more" onClick={()=>notify("Comment options are available for your own comments.","info")}>⋮</button></article>)}</div>{!trackComments.length&&<p className="af-comments-empty">Be the first to share what you think about this song.</p>}</section>
             <div className="af-playback-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an approved full-length AfroVibe release."}</div>
           </section>
         </div>
