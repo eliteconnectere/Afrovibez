@@ -542,7 +542,9 @@ export default function HomePage() {
         setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:blob.size,total:blob.size,percent:100});
       }
       if(!blob.size)throw new Error("The downloaded audio file was empty.");
-      let artworkBlob:Blob|null=null;\n      try{const artworkResponse=await fetch(track.artworkUrl100,{mode:"cors",cache:"no-store"});if(artworkResponse.ok){const candidate=await artworkResponse.blob();if(candidate.type.startsWith("image/")&&candidate.size>0)artworkBlob=candidate;}}catch(artworkError){console.warn("Artwork could not be cached for offline use:",artworkError);}\n      await saveOfflineBlob({...track,storagePath:path},blob,artworkBlob);
+      let artworkBlob:Blob|null=null;
+      try{const artworkResponse=await fetch(track.artworkUrl100,{mode:"cors",cache:"no-store"});if(artworkResponse.ok){const candidate=await artworkResponse.blob();if(candidate.type.startsWith("image/")&&candidate.size>0)artworkBlob=candidate;}}catch(artworkError){console.warn("Artwork could not be cached for offline use:",artworkError);}
+      await saveOfflineBlob({...track,storagePath:path},blob,artworkBlob);
       setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));
       setOfflineTracks(prev=>{const previous=prev.find(item=>item.trackId===track.trackId);if(previous?.artworkUrl100?.startsWith("blob:"))URL.revokeObjectURL(previous.artworkUrl100);return prev.filter(item=>item.trackId!==track.trackId).concat({...track,artworkUrl100:artworkBlob?URL.createObjectURL(artworkBlob):track.artworkUrl100,storagePath:path,audioUrl:undefined});});
       notify("Ready whenever you are. Find it in your Downloads.", "success", "Saved for offline listening");
