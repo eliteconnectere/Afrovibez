@@ -274,6 +274,8 @@ export default function HomePage() {
     }
   }, [fetchTracks]);
 
+  useEffect(() => { document.documentElement.lang = language; }, [language]);
+
   useEffect(() => {
     if("serviceWorker" in navigator){void navigator.serviceWorker.register("/sw.js").catch(error=>console.warn("AfroVibez offline app shell registration failed:",error));}
   }, []);
@@ -748,7 +750,7 @@ export default function HomePage() {
         <div className="brand">
           <span className="brand-mark"><Disc3 size={24} /></span>
           <span>AFRO<span className="brand-accent">VIBEZ</span></span>
-          <button className="close-nav" onClick={() => setMobileNav(false)} aria-label="Close menu"><X /></button>
+          <button className="close-nav" onClick={() => setMobileNav(false)} aria-label={t("Close menu")}><X /></button>
         </div>
         <div className="nav-label">{t("MENU")}</div>
         <nav>
@@ -787,10 +789,11 @@ export default function HomePage() {
           {t("Full-track playback from AfroVibe Studio.")}
         </div>
       </aside>
+      {mobileNav && <button className="mobile-nav-backdrop" aria-label={t("Close menu")} onClick={() => setMobileNav(false)} />}
 
       <section className="main-area">
         <header className="topbar">
-          <button className="menu-btn" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu /></button>
+          <button className="menu-btn" onClick={() => setMobileNav(true)} aria-label={t("Open menu")} aria-expanded={mobileNav}><Menu /></button>
           <div className="mobile-brand">AFRO<span>VIBEZ</span></div>
           <form className="searchbar" onSubmit={submitSearch}>
             <Search size={18} />
@@ -977,11 +980,11 @@ export default function HomePage() {
           <footer>© {new Date().getFullYear()} AFROVIBEZ <span>Discover. Listen. Feel.</span></footer>
         </div>
         <nav className="mobile-tabbar" aria-label="Main sections">
-          <button className={view==="discover"?"active":""} onClick={()=>setView("discover")}><Home/><span>Discover</span></button>
-          <button className={view==="charts"?"active":""} onClick={()=>setView("charts")}><TrendingUp/><span>Charts</span></button>
-          <button className={view==="search"?"active":""} onClick={()=>setView("search")}><Search/><span>Search</span></button>
-          <button className={view==="feed"?"active":""} onClick={()=>setView("feed")}><Radio/><span>Feed</span></button>
-          <button className={view==="library"?"active":""} onClick={()=>setView("library")}><Library/><span>Library</span></button>
+          <button className={view==="discover"?"active":""} onClick={()=>setView("discover")}><Home/><span>{t("Discover")}</span></button>
+          <button className={view==="charts"?"active":""} onClick={()=>setView("charts")}><TrendingUp/><span>{t("Charts")}</span></button>
+          <button className={view==="search"?"active":""} onClick={()=>setView("search")}><Search/><span>{t("Search")}</span></button>
+          <button className={view==="feed"?"active":""} onClick={()=>setView("feed")}><Radio/><span>{t("Feed")}</span></button>
+          <button className={view==="library"?"active":""} onClick={()=>setView("library")}><Library/><span>{t("Library")}</span></button>
         </nav>
       </section>
 
