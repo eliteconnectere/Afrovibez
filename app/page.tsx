@@ -26,7 +26,27 @@ type Track = {
 
 type View = "discover" | "charts" | "library" | "queue";
 
-const categories = ["All", "Afrobeats", "Afropop", "Afro-fusion", "Afroswing", "Amapiano", "Highlife", "Bongo Flava", "Hiplife", "Gqom", "Kuduro", "Kizomba", "Soukous", "Ndombolo", "Mbalax", "Fuji", "Juju", "Apala", "Gospel", "Hip-Hop", "Drill", "R&B / Soul", "Dancehall", "Reggae", "Zouk", "Makossa", "Gengetone", "Singeli", "Jazz", "Electronic", "Pop", "Traditional"];
+const categories = ["All", "African", "Afrobeats", "Afropop", "Afro-fusion", "Amapiano", "Highlife", "Bongo Flava", "Hiplife", "Gqom", "Afro House", "Soukous", "Ndombolo", "Mbalax", "Fuji", "Juju", "Caribbean", "Dancehall", "Reggae", "Soca", "Zouk", "Kompa", "Latin", "Reggaeton", "Salsa", "Bachata", "Latin Pop", "Hip-Hop / Rap", "R&B / Soul", "Pop", "Rock", "Alternative", "Indie", "Metal", "Punk", "Electronic", "House", "Techno", "Trance", "Drum & Bass", "Dubstep", "EDM", "Jazz", "Blues", "Country", "Folk", "Classical", "Gospel / Christian", "Soundtracks", "Traditional"];
+const categoryAliases: Record<string, string[]> = {
+  "African": ["afro", "amapiano", "highlife", "hiplife", "gqom", "kuduro", "kizomba", "soukou", "ndombolo", "mbalax", "fuji", "juju", "apala", "bongo", "gengetone", "singeli", "palm-wine"],
+  "Caribbean": ["dancehall", "reggae", "soca", "zouk", "kompa", "calypso"],
+  "Latin": ["latin", "reggaeton", "salsa", "bachata", "merengue", "cumbia", "bossa"],
+  "Hip-Hop / Rap": ["hip-hop", "hip hop", "rap", "drill", "trap", "grime"],
+  "R&B / Soul": ["r&b", "rnb", "soul", "neo-soul", "quiet storm", "funk"],
+  "Electronic": ["electronic", "edm", "house", "techno", "trance", "drum & bass", "drum and bass", "dubstep", "garage", "ambient", "disco", "synthwave"],
+  "Pop": ["pop", "dance-pop", "synth-pop", "k-pop", "j-pop"],
+  "Rock": ["rock", "metal", "punk", "alternative", "indie", "grunge"],
+  "Jazz": ["jazz", "blues", "bebop", "swing"],
+  "Country": ["country", "bluegrass", "americana"],
+  "Folk": ["folk", "traditional", "world"],
+  "Gospel / Christian": ["gospel", "christian", "worship", "praise"],
+};
+function genreMatchesCategory(genre: string, category: string) {
+  const value = genre.toLowerCase();
+  if (value.includes(category.toLowerCase())) return true;
+  return (categoryAliases[category] || []).some(alias => value.includes(alias));
+}
+
 
 const sectionsConfig: { id: string; title: string; subtitle: string; term: string }[] = [];
 
@@ -429,9 +449,7 @@ export default function HomePage() {
     })
     .filter(
       (t) => (showExplicitContent || !isExplicit(t)) && (
-        category === "All" ||
-        (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) ||
-        t.artistName.toLowerCase().includes(category.toLowerCase())
+        category === "All" || genreMatchesCategory(t.primaryGenreName || "", category)
       )
     );
 
@@ -664,13 +682,9 @@ export default function HomePage() {
                       key={c}
                       onClick={() => {
                         setCategory(c);
-                        if (c !== "All") {
-                          setQuery(c.toLowerCase());
-                          setInput(c);
-                        } else {
-                          setQuery("");
-                          setInput("");
-                        }
+                        setQuery("");
+                        setInput("");
+                        window.setTimeout(() => document.getElementById("browse")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
                       }}
                       className={"chip " + (category === c ? "selected" : "")}
                     >
