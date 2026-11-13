@@ -938,7 +938,7 @@ export default function HomePage() {
                     <h2 id="discovery-picks-title">{t("Find something new")}</h2>
                   </div>
                   <button className="discovery-see-all" onClick={() => { setView("search"); setMobileNav(false); }}>
-                    {t("See all")} <ChevronRight size={19} />
+                    {t("See all")} <span aria-hidden="true">→</span>
                   </button>
                 </div>
                 {loading ? (
@@ -952,7 +952,6 @@ export default function HomePage() {
                           <span className="discovery-pick-copy">
                             <strong title={track.trackName}>{track.trackName}</strong>
                             <span>{track.artistName}</span>
-                            {track.featuredArtists?.length ? <small>Feat. {track.featuredArtists.join(", ")}</small> : null}
                           </span>
                         </button>
                         <button className="icon-btn discovery-pick-more" onClick={() => setMenuTrack(track)} aria-label={t("More track options")}><MoreVertical size={20} /></button>
