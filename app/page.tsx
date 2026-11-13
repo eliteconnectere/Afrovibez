@@ -8,7 +8,7 @@ import {
   Music2, Menu, X, ListMusic, ExternalLink, LoaderCircle, Settings, TrendingUp,
   Share2, Plus, BarChart3, MoreVertical, ListPlus, Radio, Info, UserPlus, ListOrdered,
   Link2, MessageCircle, Send, Copy, Volume2, Repeat, Shuffle, Album, ChevronDown,
-  CheckCircle2, AlertTriangle, XCircle
+  CheckCircle2, AlertTriangle, XCircle, ChevronLeft
 } from "lucide-react";
 
 type Track = {
