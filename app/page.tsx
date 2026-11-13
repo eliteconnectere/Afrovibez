@@ -340,12 +340,12 @@ export default function HomePage() {
       let blob:Blob;
       if(response.body){
         const reader=response.body.getReader();
-        const chunks:Uint8Array[]=[];
+        const chunks:ArrayBuffer[]=[];
         let loaded=0;
         while(true){
           const {done,value}=await reader.read();
           if(done)break;
-          if(value){chunks.push(value);loaded+=value.byteLength;setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded,total,percent:total?Math.min(100,Math.round(loaded/total*100)):null});}
+          if(value){const chunk=new ArrayBuffer(value.byteLength);new Uint8Array(chunk).set(value);chunks.push(chunk);loaded+=value.byteLength;setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded,total,percent:total?Math.min(100,Math.round(loaded/total*100)):null});}
         }
         blob=new Blob(chunks,{type:response.headers.get("content-type")||"audio/mpeg"});
       }else{
