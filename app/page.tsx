@@ -25,7 +25,7 @@ type Track = {
   contentAdvisoryRating?: string;
 };
 
-type View = "discover" | "charts" | "library" | "queue";
+type View = "discover" | "charts" | "search" | "feed" | "library" | "queue";
 
 const categories = ["All", "African", "Afrobeats", "Afropop", "Afro-fusion", "Amapiano", "Highlife", "Bongo Flava", "Hiplife", "Gqom", "Afro House", "Soukous", "Ndombolo", "Mbalax", "Fuji", "Juju", "Caribbean", "Dancehall", "Reggae", "Soca", "Zouk", "Kompa", "Latin", "Reggaeton", "Salsa", "Bachata", "Latin Pop", "Hip-Hop / Rap", "R&B / Soul", "Pop", "Rock", "Alternative", "Indie", "Metal", "Punk", "Electronic", "House", "Techno", "Trance", "Drum & Bass", "Dubstep", "EDM", "Jazz", "Blues", "Country", "Folk", "Classical", "Gospel / Christian", "Soundtracks", "Traditional"];
 const categoryAliases: Record<string, string[]> = {
@@ -59,6 +59,7 @@ export default function HomePage() {
   const [charts, setCharts] = useState<Track[]>([]);
   const [query, setQuery] = useState("");
   const [input, setInput] = useState("");
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [category, setCategory] = useState("All");
   const [loading, setLoading] = useState(true);
   const [sectionsLoading, setSectionsLoading] = useState(true);
@@ -191,6 +192,8 @@ export default function HomePage() {
       setLiked(new Set(Array.isArray(savedLikes) ? savedLikes.filter((id): id is number => Number.isFinite(id)) : []));
       setQueue((JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[]).filter(t => t.source === "studio"));
       setPlaylists((JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]") as {id:string;name:string;tracks:Track[]}[]).map(p => ({...p, tracks:p.tracks.filter(t => t.source === "studio")})));
+      const savedSearches = JSON.parse(localStorage.getItem("afrovibez.searches.v1") || "[]");
+      setRecentSearches(Array.isArray(savedSearches) ? savedSearches.filter((x): x is string => typeof x === "string").slice(0,8) : []);
       const savedFollows = JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]");
       setFollowedArtists(Array.isArray(savedFollows) ? savedFollows.filter((name): name is string => typeof name === "string") : []);
       const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
@@ -207,8 +210,9 @@ export default function HomePage() {
       localStorage.setItem("afrovibez.queue.v1", JSON.stringify(queue));
       localStorage.setItem("afrovibez.playlists.v1", JSON.stringify(playlists));
       localStorage.setItem("afrovibez.follows.v1", JSON.stringify(followedArtists));
+      localStorage.setItem("afrovibez.searches.v1", JSON.stringify(recentSearches));
     } catch { setToast("Browser storage is full; some changes may not persist."); }
-  }, [liked, queue, playlists, followedArtists, storageReady]);
+  }, [liked, queue, playlists, followedArtists, recentSearches, storageReady]);
 
   useEffect(() => {
     try {
@@ -506,7 +510,8 @@ export default function HomePage() {
     if (input.trim()) {
       setQuery(input.trim());
       setCategory("All");
-      setView("discover");
+      setRecentSearches(prev => [input.trim(), ...prev.filter(x => x.toLowerCase() !== input.trim().toLowerCase())].slice(0,8));
+      setView("search");
     }
   };
 
@@ -545,7 +550,7 @@ export default function HomePage() {
   };
 
   const TrackCard = ({ track, index = 0 }: { track: Track; index?: number }) => (
-    <article className="track-card">
+    <article className="track-card" onClick={(e)=>{if((e.target as HTMLElement).closest("button"))return;void playTrack(track);}} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();void playTrack(track);}}}>
       <div className="cover-wrap">
         <img
           src={artworkUrl(track, "400x400", "100x100")}
@@ -597,7 +602,7 @@ export default function HomePage() {
       ) : list.length ? (
         <div className="row-scroll">
           {list.map((track, i) => (
-            <article className="row-card" key={track.trackId}>
+            <article className="row-card" key={track.trackId} role="button" tabIndex={0} onClick={()=>void playTrack(track)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")void playTrack(track);}}>
               <div className="row-cover">
                 <img src={artworkUrl(track, "300x300", "100x100")} alt="" loading="lazy" />
                 <button
@@ -646,6 +651,8 @@ export default function HomePage() {
           >
             <BarChart3 size={19} /> Charts
           </button>
+          <button className={"nav-item " + (view === "search" ? "active" : "")} onClick={() => { setView("search"); setMobileNav(false); }}><Search size={19}/> Search</button>
+          <button className={"nav-item " + (view === "feed" ? "active" : "")} onClick={() => { setView("feed"); setMobileNav(false); }}><Radio size={19}/> Feed</button>
           <button
             className={"nav-item " + (view === "library" ? "active" : "")}
             onClick={() => { setView("library"); setMobileNav(false); }}
@@ -817,6 +824,21 @@ export default function HomePage() {
             </section>
           )}
 
+          {view === "search" && (
+            <section className="library-view search-view">
+              <div className="section-heading"><div><div className="eyebrow dark">FIND YOUR NEXT FAVOURITE</div><h2>Search music</h2><p>Search approved songs, artists and genres across AfroVibez.</p></div></div>
+              <form className="search-page-form" onSubmit={submitSearch}><Search size={19}/><input value={input} onChange={e=>setInput(e.target.value)} placeholder="Songs, artists, albums or genres…" aria-label="Search songs artists albums or genres"/><button type="submit">Search</button></form>
+              {!query.trim() ? <><div className="search-section-title"><strong>Browse genres</strong><span>Explore by sound</span></div><div className="search-genre-grid">{categories.filter(c=>c!=="All").slice(0,20).map(c=><button key={c} onClick={()=>{setCategory(c);setQuery("");setInput("");setView("discover");}}>{c}<span>↗</span></button>)}</div>{recentSearches.length>0&&<div className="recent-searches"><div className="search-section-title"><strong>Recent searches</strong><button onClick={()=>setRecentSearches([])}>Clear</button></div>{recentSearches.map(term=><button key={term} onClick={()=>{setInput(term);setQuery(term);setCategory("All");}}><Search size={14}/>{term}</button>)}</div>}<div className="search-section-title"><strong>Recently added</strong><span>Fresh from AfroVibe Studio</span></div><div className="track-grid">{studioTracks.slice(0,8).map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div></> : <><div className="search-section-title"><strong>Results for “{query}”</strong><span>{visibleTracks.length} results</span></div>{visibleTracks.length?<div className="track-grid">{visibleTracks.map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div>:<div className="empty-state"><Search size={28}/><strong>No matching music yet</strong><span>Try another song title, artist name or genre.</span></div>}</>}
+            </section>
+          )}
+
+          {view === "feed" && (
+            <section className="library-view feed-view">
+              <div className="section-heading"><div><div className="eyebrow dark">YOUR MUSIC COMMUNITY</div><h2>Following feed</h2><p>New releases from artists you follow.</p></div></div>
+              {followedArtists.length ? <><div className="feed-following-note">Following {followedArtists.length} {followedArtists.length===1?"artist":"artists"}: {followedArtists.join(", ")}</div>{studioTracks.filter(t=>followedArtists.includes(t.artistName)).length ? <div className="track-grid">{studioTracks.filter(t=>followedArtists.includes(t.artistName)).map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div> : <div className="empty-state"><Radio size={28}/><strong>No new releases from your artists yet</strong><span>When artists you follow publish music, it will appear here.</span></div>}</> : <div className="bottom-callout"><div className="callout-icon"><Radio size={23}/></div><div><strong>Your feed starts with artists you follow</strong><p>Open a song’s More menu or artist profile and choose Follow. Their new approved releases will appear here.</p></div><button className="feed-discover-button" onClick={()=>setView("discover")}>Discover artists</button></div>}
+            </section>
+          )}
+
           {view === "queue" && (
             <section className="library-view"><div className="section-heading"><div><div className="eyebrow dark">UP NEXT</div><h2>Your queue</h2><p>{queue.length} tracks waiting.</p></div></div>
               {queue.length ? <div className="charts-list">{queue.map((t,i)=><article className="chart-row" key={t.trackId}><span className="rank">{i+1}</span><div className="chart-cover"><img src={t.artworkUrl100} alt=""/></div><div className="chart-info"><strong>{t.trackName}</strong><span>{t.artistName}</span></div><button className="icon-btn" onClick={()=>void playTrack(t)}><Play size={16}/></button><button className="icon-btn" onClick={()=>setQueue(q=>q.filter(x=>x.trackId!==t.trackId))}><X size={16}/></button></article>)}</div>:<div className="bottom-callout"><strong>Your queue is empty</strong><p>Use a song’s options menu to add tracks.</p></div>}
@@ -841,6 +863,13 @@ export default function HomePage() {
 
           <footer>© {new Date().getFullYear()} AFROVIBEZ <span>Discover. Listen. Feel.</span></footer>
         </div>
+        <nav className="mobile-tabbar" aria-label="Main sections">
+          <button className={view==="discover"?"active":""} onClick={()=>setView("discover")}><Home/><span>Discover</span></button>
+          <button className={view==="charts"?"active":""} onClick={()=>setView("charts")}><TrendingUp/><span>Charts</span></button>
+          <button className={view==="search"?"active":""} onClick={()=>setView("search")}><Search/><span>Search</span></button>
+          <button className={view==="feed"?"active":""} onClick={()=>setView("feed")}><Radio/><span>Feed</span></button>
+          <button className={view==="library"?"active":""} onClick={()=>setView("library")}><Library/><span>Library</span></button>
+        </nav>
       </section>
 
       {current && (
