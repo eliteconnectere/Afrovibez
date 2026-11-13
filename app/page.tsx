@@ -26,12 +26,7 @@ type View = "discover" | "charts" | "library" | "queue";
 
 const categories = ["All", "Afrobeats", "Afropop", "Amapiano", "Highlife", "Gospel", "Hip-Hop"];
 
-const sectionsConfig = [
-  { id: "trending", title: "Trending in Nigeria", subtitle: "What people are playing right now", term: "afrobeats nigeria" },
-  { id: "afrobeats", title: "Afrobeats Essentials", subtitle: "The sound that moved the world", term: "afrobeats" },
-  { id: "amapiano", title: "Amapiano Heat", subtitle: "Log drums and soulful keys", term: "amapiano" },
-  { id: "fresh", title: "Fresh Finds", subtitle: "New and rising Afro sounds", term: "afropop 2024" },
-];
+const sectionsConfig: { id: string; title: string; subtitle: string; term: string }[] = [];
 
 export default function HomePage() {
   const [view, setView] = useState<View>("discover");
@@ -39,7 +34,7 @@ export default function HomePage() {
   const [studioTracks, setStudioTracks] = useState<Track[]>([]);
   const [sectionTracks, setSectionTracks] = useState<Record<string, Track[]>>({});
   const [charts, setCharts] = useState<Track[]>([]);
-  const [query, setQuery] = useState("afrobeats");
+  const [query, setQuery] = useState("");
   const [input, setInput] = useState("");
   const [category, setCategory] = useState("All");
   const [loading, setLoading] = useState(true);
@@ -50,7 +45,7 @@ export default function HomePage() {
   const [playing, setPlaying] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(30);
+  const [duration, setDuration] = useState(0);
   const [shuffleEnabled, setShuffleEnabled] = useState(false);
   const [repeatEnabled, setRepeatEnabled] = useState(false);
   const [audioMode, setAudioMode] = useState<"normal"|"sped"|"slowed"|"nightcore"|"daycore">("normal");
@@ -71,19 +66,8 @@ export default function HomePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentTrackIdRef = useRef<number | null>(null);
 
-  const fetchTracks = useCallback(async (term: string, limit = 24) => {
-    const response = await fetch(
-      "https://itunes.apple.com/search?term=" +
-        encodeURIComponent(term) +
-        "&entity=song&limit=" + limit + "&country=ng"
-    );
-    if (!response.ok) throw new Error("Music catalogue is temporarily unavailable.");
-    const data = await response.json();
-    return (data.results || []).filter(
-      (item: Track) => item.trackId && item.trackName && item.artistName
-    ) as Track[];
-  }, []);
-
+  // No third-party catalogue: AfroVibez only plays full-length artist uploads.
+  const fetchTracks = useCallback(async (_term: string, _limit = 24) => [] as Track[], []);
   const loadTracks = useCallback(
     async (term: string) => {
       setLoading(true);
@@ -139,10 +123,10 @@ export default function HomePage() {
 
   useEffect(() => {
     try {
-      setLiked(new Set(JSON.parse(localStorage.getItem("afrovibez.likes.v1") || "[]")));
-      setQueue(JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]"));
-      setPlaylists(JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]"));
-      setFollowedArtists(JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]"));
+      setLiked(new Set());
+      setQueue((JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[]).filter(t => t.source === "studio"));
+      setPlaylists((JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]") as {id:string;name:string;tracks:Track[]}[]).map(p => ({...p, tracks:p.tracks.filter(t => t.source === "studio")})));
+      setFollowedArtists([]);
       const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
       setHighQualityArtwork(preferences.highQuality !== false);
       setShowExplicitContent(preferences.explicitContent !== false);
@@ -277,11 +261,11 @@ export default function HomePage() {
       setCurrentTime(0);
     });
     audio.addEventListener("pause", () => setPlaying(false));
-    audio.addEventListener("error", () => { setPlaying(false); setToast("This catalogue preview is unavailable."); });
+    audio.addEventListener("error", () => { setPlaying(false); setToast("This uploaded track could not be played. Please try again."); });
     audio.addEventListener("play", () => setPlaying(true));
     audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
     audio.addEventListener("loadedmetadata", () =>
-      setDuration(Number.isFinite(audio.duration) ? audio.duration : 30)
+      setDuration(Number.isFinite(audio.duration) ? audio.duration : 0)
     );
     audio.addEventListener("ended", () => setCurrentTime(0));
     return () => {
@@ -313,11 +297,11 @@ export default function HomePage() {
     currentTrackIdRef.current = track.trackId;
     setCurrent(track);
     setCurrentTime(0);
-    setDuration(30);
+    setDuration(0);
     try {
       await audio.play();
     } catch {
-      setError("This preview could not be played. Try another track.");
+      setError("This full track could not be played. Please try again.");
     }
   };
 
@@ -379,7 +363,7 @@ export default function HomePage() {
   const visibleTracks = [...studioTracks.filter((t) => {
     const term = query.trim().toLowerCase();
     return !term || `${t.trackName} ${t.artistName} ${t.primaryGenreName || ""}`.toLowerCase().includes(term);
-  }), ...tracks].filter(
+  })].filter(
     (t) => (showExplicitContent || !isExplicit(t)) && (
       category === "All" ||
       (t.primaryGenreName || "").toLowerCase().includes(category.toLowerCase()) ||
@@ -398,7 +382,7 @@ export default function HomePage() {
 
   const playAdjacent = (direction: -1 | 1) => {
     if (!current) return;
-    const playable = [...tracks, ...charts, ...Object.values(sectionTracks).flat()]
+    const playable = studioTracks
       .filter((t, index, all) => !!t.previewUrl && all.findIndex(x => x.trackId === t.trackId) === index);
     if (!playable.length) return;
     if (shuffleRef.current && direction > 0) {
@@ -546,11 +530,11 @@ export default function HomePage() {
         <div className="sidebar-note">
           <div className="note-icon"><Headphones size={21} /></div>
           <strong>Your sound. Your roots.</strong>
-          <p>Discover Afro-inspired music and listen to available previews.</p>
+          <p>Discover full songs uploaded by AfroVibe artists.</p>
         </div>
         <div className="sidebar-foot">
-          Music catalogue provided by Apple iTunes Search.<br />
-          Previews only — full streaming not connected yet.
+          Only approved artist uploads appear here.<br />
+          Full-track playback from AfroVibe Studio.
         </div>
       </aside>
 
@@ -563,7 +547,7 @@ export default function HomePage() {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Search songs, artists, albums…"
+              placeholder="Search uploaded songs and artists…"
               aria-label="Search music"
             />
             <button type="submit">Search</button>
@@ -578,7 +562,7 @@ export default function HomePage() {
                 <div className="hero-copy">
                   <div className="eyebrow"><span /> THE SOUND OF AFRICA</div>
                   <h1>Feel the rhythm.<br /><em>Find your vibe.</em></h1>
-                  <p>Discover Afro-inspired sounds, explore artists and listen to available previews — all in one place.</p>
+                  <p>Discover music uploaded and approved by artists on AfroVibe Studio. Listen to complete releases, not short previews.</p>
                   <a className="hero-button" href="#browse">Explore music <span>↗</span></a>
                 </div>
                 <div className="hero-art" aria-hidden="true">
@@ -606,7 +590,7 @@ export default function HomePage() {
                   <div>
                     <div className="eyebrow dark">BROWSE ALL</div>
                     <h2>Explore the catalogue</h2>
-                    <p>Real results from Apple’s music catalogue. Nothing is simulated.</p>
+                    <p>Only approved full-length releases from AfroVibe Studio appear here.</p>
                   </div>
                   <span className="results-label">{visibleTracks.length} RESULTS</span>
                 </div>
@@ -620,7 +604,7 @@ export default function HomePage() {
                           setQuery(c.toLowerCase());
                           setInput(c);
                         } else {
-                          setQuery("afrobeats");
+                          setQuery("");
                           setInput("");
                         }
                       }}
@@ -636,7 +620,7 @@ export default function HomePage() {
                   </div>
                 )}
                 {loading ? (
-                  <div className="loading"><LoaderCircle className="spin" /> Loading real music catalogue…</div>
+                  <div className="loading"><LoaderCircle className="spin" /> Loading approved AfroVibe releases…</div>
                 ) : visibleTracks.length ? (
                   <div className="track-grid">
                     {visibleTracks.map((track, index) => (
@@ -648,7 +632,7 @@ export default function HomePage() {
                     <div className="empty-state">
                       <Music2 size={30} />
                       <strong>No tracks in this view</strong>
-                      <span>Try another genre or search for an artist.</span>
+                      <span>Your catalogue is fresh and ready. Be the first to upload a song in AfroVibez Studio.</span>
                     </div>
                   )
                 )}
@@ -661,7 +645,7 @@ export default function HomePage() {
               <div className="charts-header">
                 <div className="eyebrow dark">NIGERIA</div>
                 <h1>Top Charts</h1>
-                <p>Ranked by current catalogue popularity. Previews only.</p>
+                <p>Official AfroVibe releases will appear here as listening data becomes available.</p>
               </div>
               {chartsLoading ? (
                 <div className="loading"><LoaderCircle className="spin" /> Loading charts…</div>
@@ -818,8 +802,8 @@ export default function HomePage() {
                   return <span key={i} className={i/64 <= currentTime/Math.max(duration,1)?"played":""} style={{height:height+"%"}}/>;
                 })}
               </div>
-              <input aria-label="Seek through preview" type="range" min="0" max={duration||30} step="0.1" value={Math.min(currentTime,duration||30)} onChange={e=>seek(Number(e.target.value))}/>
-              <div className="af-time-labels"><span>{timeLabel(currentTime)}</span><span>{timeLabel(Math.max(0,(duration||30)-currentTime))} left</span></div>
+              <input aria-label="Seek through full track" type="range" min="0" max={duration||1} step="0.1" value={Math.min(currentTime,duration||0)} onChange={e=>seek(Number(e.target.value))}/>
+              <div className="af-time-labels"><span>{timeLabel(currentTime)}</span><span>{timeLabel(Math.max(0,duration-currentTime))} left</span></div>
             </div>
             <div className="af-transport">
               <button onClick={()=>setMenuTrack(current)} aria-label="More playback options"><MoreVertical/></button>
@@ -844,7 +828,7 @@ export default function HomePage() {
               <p>Catalogue listing · {current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
               <a href={current.trackViewUrl} target="_blank" rel="noreferrer">Open official catalogue listing <ExternalLink/></a>
             </section>
-            <div className="af-preview-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an Apple Music catalogue preview. Full-track playback and licensed downloads are not connected for catalogue previews."}</div>
+            <div className="af-preview-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an Apple Music full track. Full-track playback and licensed downloads are not connected for full tracks."}</div>
           </section>
         </div>
       )}
