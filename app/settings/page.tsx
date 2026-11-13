@@ -80,6 +80,7 @@ export default function SettingsPage() {
     if (typeof indexedDB !== "undefined") {
       try {
         const request = indexedDB.open(offlineDbName, 1);
+        request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains("tracks")) request.result.createObjectStore("tracks", { keyPath: "trackId" }); };
         request.onsuccess = () => {
           const db = request.result;
           if (!db.objectStoreNames.contains("tracks")) { setOfflineStorage({ count: 0, bytes: 0 }); db.close(); return; }
@@ -128,6 +129,7 @@ export default function SettingsPage() {
     try {
       if (typeof indexedDB !== "undefined") {
         const request = indexedDB.open(offlineDbName, 1);
+        request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains("tracks")) request.result.createObjectStore("tracks", { keyPath: "trackId" }); };
         await new Promise<void>((resolve, reject) => {
           request.onsuccess = () => { const db = request.result; if (!db.objectStoreNames.contains("tracks")) { db.close(); resolve(); return; } const tx = db.transaction("tracks", "readwrite"); tx.objectStore("tracks").clear(); tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => { db.close(); reject(tx.error); }; };
           request.onerror = () => reject(request.error);
