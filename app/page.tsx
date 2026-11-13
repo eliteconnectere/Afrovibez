@@ -150,55 +150,36 @@ export default function HomePage() {
   };
 
   const loadArtistSocial = async (artists: any[]) => {
-    const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const ids = artists.map((artist:any)=>artist.id).filter(Boolean);
-    if (!base || !key || !ids.length) return;
-    let token = key;
-    let signedIn = false;
+    const base=process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const ids=artists.map((artist:any)=>artist.id).filter(Boolean);
+    if(!base||!key||!ids.length)return;
+    let token=key;
+    let signedIn=false;
     try {
-      token = await ensureListenerAccessToken();
-      signedIn = true;
-      const userResponse = await fetch(`${base}/auth/v1/user`, { headers: { apikey:key, Authorization:`Bearer ${token}` } });
-      if (userResponse.ok) {
-        const user = await userResponse.json();
-        const oldNames = JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]");
-        const legacyIds = artists.filter((artist:any)=>Array.isArray(oldNames)&&oldNames.includes(artist.stage_name)).map((artist:any)=>artist.id).filter((id:string)=>id!==undefined);
-        if (user.id && legacyIds.length) {
-          await fetch(`${base}/rest/v1/studio_artist_follows`, {
-            method:"POST", headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},
-            body:JSON.stringify(legacyIds.map((artist_id:string)=>({artist_id,follower_id:user.id})))
-          });
+      const saved=JSON.parse(localStorage.getItem("afrovibez.listener-auth.v1")||"null");
+      if(saved?.refresh_token){
+        token=await ensureListenerAccessToken();
+        signedIn=true;
+        const userResponse=await fetch(`${base}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
+        if(userResponse.ok){
+          const user=await userResponse.json();
+          const oldNames=JSON.parse(localStorage.getItem("afrovibez.follows.v1")||"[]");
+          const legacyIds=artists.filter((artist:any)=>Array.isArray(oldNames)&&oldNames.includes(artist.stage_name)).map((artist:any)=>artist.id);
+          if(user.id&&legacyIds.length)await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},body:JSON.stringify(legacyIds.map((artist_id:string)=>({artist_id,follower_id:user.id})))});
         }
       }
-    } catch (error) {
-      console.warn("AfroVibez listener sign-in is not available yet:", error);
-      setFollowedArtistIds([]);
-      setFollowedArtists([]);
-    }
-    try {
-      const response = await fetch(`${base}/rest/v1/rpc/get_artist_follow_counts`, {
-        method:"POST", headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
-        body:JSON.stringify({p_artist_ids:ids})
-      });
-      if (!response.ok) throw new Error(await response.text());
-      const rows = await response.json();
+    }catch(error){console.warn("AfroVibez saved listener session could not be refreshed:",error);}
+    try{
+      const response=await fetch(`${base}/rest/v1/rpc/get_artist_follow_counts`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({p_artist_ids:ids})});
+      if(!response.ok)throw new Error(await response.text());
+      const rows=await response.json();
       const counts:Record<string,number>={};
       const following:string[]=[];
-      for (const row of rows||[]) {
-        counts[row.artist_id]=Number(row.follower_count||0);
-        if (signedIn && row.is_following) following.push(row.artist_id);
-      }
+      for(const row of rows||[]){counts[row.artist_id]=Number(row.follower_count||0);if(signedIn&&row.is_following)following.push(row.artist_id);}
       setFollowerCounts(current=>({...current,...counts}));
-      if (signedIn) {
-        setFollowedArtistIds(following);
-        const names=artists.filter((artist:any)=>following.includes(artist.id)).map((artist:any)=>artist.stage_name);
-        setFollowedArtists(names);
-        localStorage.setItem("afrovibez.follows.v1",JSON.stringify(names));
-      }
-    } catch (error) {
-      console.warn("AfroVibez follower totals could not be loaded:",error);
-    }
+      if(signedIn){setFollowedArtistIds(following);const names=artists.filter((artist:any)=>following.includes(artist.id)).map((artist:any)=>artist.stage_name);setFollowedArtists(names);localStorage.setItem("afrovibez.follows.v1",JSON.stringify(names));}
+    }catch(error){console.warn("AfroVibez follower totals could not be loaded:",error);}
   };
 
   const toggleArtistFollow = async (artistId:string, stageName:string) => {
