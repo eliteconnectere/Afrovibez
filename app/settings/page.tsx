@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { translateText, languageOptions } from "../../lib/i18n";
 import {
   ArrowLeft, Bell, ChevronRight, CircleHelp, Disc3, Globe2, Headphones,
   Moon, Music2, ShieldCheck, SlidersHorizontal, Trash2, UserRound,
@@ -30,7 +31,7 @@ type Profile = { displayName: string; username: string; bio: string };
 const defaults: Preferences = {
   theme: "light", autoplay: false, highQuality: true, explicitContent: true,
   newReleases: true, playlistUpdates: true, productNews: false,
-  pushNotifications: true, emailNotifications: false, language: "English",
+  pushNotifications: true, emailNotifications: false, language: "en",
   volume: 85, defaultMode: "normal", gaplessPlayback: false
 };
 const profileDefaults: Profile = { displayName: "", username: "", bio: "" };
@@ -63,6 +64,7 @@ function ToggleRow({ title, description, checked, onChange, label }: { title: st
 
 export default function SettingsPage() {
   const [section, setSection] = useState<Section>("overview");
+  const t = (value:string) => translateText(value, prefs.language);
   const [prefs, setPrefs] = useState<Preferences>(defaults);
   const [profile, setProfile] = useState<Profile>(profileDefaults);
   const [ready, setReady] = useState(false);
@@ -73,7 +75,9 @@ export default function SettingsPage() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(prefKey) || "{}");
-      setPrefs({ ...defaults, ...saved });
+      const savedLanguage = String(saved.language || "en").toLowerCase();
+      const normalizedLanguage = savedLanguage === "french" ? "fr" : savedLanguage === "spanish" ? "es" : savedLanguage === "portuguese" ? "pt" : savedLanguage;
+      setPrefs({ ...defaults, ...saved, language: normalizedLanguage });
       setProfile({ ...profileDefaults, ...JSON.parse(localStorage.getItem(profileKey) || "{}") });
     } catch { /* Recover with safe defaults if local data is malformed. */ }
     setReady(true);
@@ -96,6 +100,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!ready) return;
     document.documentElement.dataset.theme = prefs.theme;
+    document.documentElement.lang = prefs.language || "en";
     try {
       localStorage.setItem(prefKey, JSON.stringify(prefs));
       localStorage.setItem(profileKey, JSON.stringify(profile));
@@ -141,18 +146,18 @@ export default function SettingsPage() {
     } catch { setNotice("Some offline audio could not be cleared. Please try again."); }
   };
   const current = sections.find(item => item.id === section);
-  const heading = current?.title || "Settings";
+  const heading = t(current?.title || "Settings");
 
   return <main className="settings-page">
     <header className="settings-topbar">
-      <Link href="/" className="settings-back"><ArrowLeft size={18}/> Back to Discover</Link>
+      <Link href="/" className="settings-back"><ArrowLeft size={18}/> {t("Back to Discover")}</Link>
       <div className="settings-brand"><span><Disc3 size={21}/></span> AFRO<span>VIBEZ</span></div>
     </header>
     <div className="settings-content settings-v2">
       <div className="settings-intro">
-        <div className="settings-kicker">MAKE IT YOURS</div>
+        <div className="settings-kicker">{t("MAKE IT YOURS")}</div>
         <h1>{heading}</h1>
-        <p>{section === "overview" ? "Your music app, your choices. Open a category to see and manage every option." : current?.description}</p>
+        <p>{section === "overview" ? t("Your music app, your choices. Open a category to see and manage every option.") : t(current?.description || "")}</p>
       </div>
       {notice && <div className="settings-notice" role="status"><Check size={15}/>{notice}<button onClick={() => setNotice("")} aria-label="Dismiss message">×</button></div>}
 
@@ -164,7 +169,7 @@ export default function SettingsPage() {
         </section>
         <div className="settings-section-label">ACCOUNT & PERSONALISATION</div>
         <div className="settings-menu-list">
-          {sections.slice(0, 2).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{item.title}</strong><small>{item.description}</small></span>{item.status && <em>{item.status}</em>}<ChevronRight size={19}/></button>; })}
+          {sections.slice(0, 2).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{t(item.title)}</strong><small>{t(item.description)}</small></span>{item.status && <em>{item.status}</em>}<ChevronRight size={19}/></button>; })}
         </div>
         <div className="settings-section-label">APP PREFERENCES</div>
         <div className="settings-menu-list">
@@ -175,7 +180,7 @@ export default function SettingsPage() {
           {sections.slice(6).map(item => { const Icon = item.icon; return <button key={item.id} className="settings-menu-item" onClick={() => { setSection(item.id); setNotice(""); }}><span className="settings-menu-icon"><Icon size={20}/></span><span className="settings-menu-copy"><strong>{item.title}</strong><small>{item.description}</small></span><ChevronRight size={19}/></button>; })}
         </div>
       </> : <>
-        <button className="settings-detail-back" onClick={() => { setSection("overview"); setNotice(""); }}><ArrowLeft size={16}/> All settings</button>
+        <button className="settings-detail-back" onClick={() => { setSection("overview"); setNotice(""); }}><ArrowLeft size={16}/> {t("All settings")}</button>
         <section className="settings-detail-card">
           {section === "profile" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><UserRound size={19}/></span><div><h2>Profile information</h2><p>These details are stored in this browser and are not a public or synced account profile.</p></div></div>
@@ -220,8 +225,8 @@ export default function SettingsPage() {
           </>}
           {section === "language" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><Globe2 size={19}/></span><div><h2>App language</h2><p>Choose the language used for menus and controls.</p></div></div>
-            <Row title="Language" description="Only English translations are currently included in this version."><select className="setting-select" value={prefs.language} onChange={e => update("language",e.target.value)}><option>English</option></select></Row>
-            <div className="settings-status-panel"><strong>More languages are not ready yet</strong><p>Additional language options will appear here once the full interface translations are available. The setting will not pretend to change the app language before then.</p></div>
+            <Row title={t("Language")} description={t("Choose the language used for menus and controls.")}><select className="setting-select" value={prefs.language} onChange={e => update("language",e.target.value)}>{languageOptions.map(option=><option key={option.code} value={option.code}>{option.nativeLabel}</option>)}</select></Row>
+            <div className="settings-status-panel"><strong>{t("Available languages")}</strong><p>English · Français · Español · Português. Navigation, common actions, artist profiles and core settings update immediately. Music titles, artist biographies and user-submitted descriptions stay in their original language.</p></div>
           </>}
           {section === "privacy" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><ShieldCheck size={19}/></span><div><h2>Privacy & social</h2><p>Here is what this version stores and what it does not share.</p></div></div>
