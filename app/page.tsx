@@ -47,6 +47,7 @@ export default function HomePage() {
   const [artistProfiles, setArtistProfiles] = useState<Record<string, any>>({});
   const [artistProfileOpen, setArtistProfileOpen] = useState(false);
   const [offlineDownloads, setOfflineDownloads] = useState<Set<number>>(new Set());
+  const offlineDownloadsRef = useRef<Set<number>>(new Set());
   const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
   const [offlineBusy, setOfflineBusy] = useState<number | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<{trackId:number;trackName:string;loaded:number;total:number|null;percent:number|null} | null>(null);
@@ -74,6 +75,7 @@ export default function HomePage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentTrackIdRef = useRef<number | null>(null);
   const activeObjectUrlRef = useRef<string | null>(null);
+  offlineDownloadsRef.current = offlineDownloads;
 
   const OFFLINE_DB = "afrovibez-offline-v1";
   const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
@@ -250,27 +252,21 @@ export default function HomePage() {
           return;
         }
         const savedQueue = JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[];
-        const nextQueue = savedQueue.filter(t => t.audioUrl);
+        const nextQueue = savedQueue.filter(t => t.audioUrl || offlineDownloadsRef.current.has(t.trackId));
         if (nextQueue.length) {
           const nextIndex = shuffleRef.current ? Math.floor(Math.random() * nextQueue.length) : 0;
           const next = nextQueue[nextIndex];
           const remaining = nextQueue.filter((_, index) => index !== nextIndex);
           setQueue(remaining);
           localStorage.setItem("afrovibez.queue.v1", JSON.stringify(remaining));
-          currentTrackIdRef.current = next.trackId;
-          setCurrent(next);
-          audio.src = next.audioUrl!;
-          void audio.play().catch(() => { setPlaying(false); setToast("The next track could not be played."); });
+          void playTrack(next);
           return;
         }
       } catch { /* Ignore invalid saved queue data. */ }
-      const available = catalogueRef.current.filter(track => track.audioUrl && track.trackId !== currentTrackIdRef.current);
+      const available = catalogueRef.current.filter(track => (track.audioUrl || offlineDownloadsRef.current.has(track.trackId)) && track.trackId !== currentTrackIdRef.current);
       if (available.length) {
         const next = shuffleRef.current ? available[Math.floor(Math.random() * available.length)] : available[0];
-        currentTrackIdRef.current = next.trackId;
-        setCurrent(next);
-        audio.src = next.audioUrl!;
-        void audio.play().catch(() => { setPlaying(false); setToast("The next track could not be played."); });
+        void playTrack(next);
         return;
       }
       setPlaying(false);
@@ -421,6 +417,9 @@ export default function HomePage() {
 
   const isExplicit = (track: Track) => track.trackExplicitness?.toLowerCase() === "explicit" || track.contentAdvisoryRating?.toLowerCase() === "explicit";
   const artworkUrl = (track: Track, high: string, low: string) => track.artworkUrl100?.replace("100x100", highQualityArtwork ? high : low);
+  const likedTracks = [...studioTracks, ...offlineTracks]
+    .filter((track, index, all) => liked.has(track.trackId) && all.findIndex(item => item.trackId === track.trackId) === index);
+
   const visibleTracks = [...studioTracks, ...offlineTracks]
     .filter((track, index, all) => all.findIndex(item => item.trackId === track.trackId) === index)
     .filter((t) => {
@@ -709,7 +708,7 @@ export default function HomePage() {
               <div className="charts-header">
                 <div className="eyebrow dark">AFRICA</div>
                 <h1>Top Charts</h1>
-                <p>Official AfroVibe releases will appear here as listening data becomes available.</p>
+                <p>Charts are not active yet. AfroVibez does not currently collect the listener play-count data needed to rank releases.</p>
               </div>
               {chartsLoading ? (
                 <div className="loading"><LoaderCircle className="spin" /> Loading charts…</div>
@@ -749,7 +748,7 @@ export default function HomePage() {
                 <div className="empty-state">
                   <TrendingUp size={28} />
                   <strong>No chart data yet</strong>
-                  <span>AfroVibe charts will appear as real listening activity is collected.</span>
+                  <span>Real chart rankings need play-count analytics and listener activity tracking, which are not connected yet.</span>
                 </div>
               )}
             </section>
@@ -767,26 +766,13 @@ export default function HomePage() {
                 <div>
                   <div className="eyebrow dark">YOUR SPACE</div>
                   <h2>Your library</h2>
-                  <p>Liked tracks and personal collections will live here.</p>
+                  <p>Your downloads, liked releases and playlists in one place.</p>
                 </div>
               </div>
               {offlineTracks.length > 0 && <section className="offline-library"><h3>Downloaded for offline listening</h3><p>These songs are stored on this device and can play without an internet connection.</p><div className="track-grid">{offlineTracks.map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div></section>}
-              {liked.size > 0 ? (
-                <div className="track-grid">
-                  {studioTracks.concat(offlineTracks).filter((t,index,all) => liked.has(t.trackId) && all.findIndex(x=>x.trackId===t.trackId)===index).map((track) => (
-                    <TrackCard key={track.trackId} track={track} />
-                  ))}
-                </div>
-              ) : (
-                <div className="bottom-callout">
-                  <div className="callout-icon"><ListMusic size={23} /></div>
-                  <div>
-                    <strong>Nothing saved yet</strong>
-                    <p>Tap the heart on any track to start building your library. Offline downloads saved on this device appear above.</p>
-                  </div>
-                  <span className="coming-label">LOCAL ONLY</span>
-                </div>
-              )}
+              {likedTracks.length > 0 && <section className="offline-library"><h3>Liked songs</h3><div className="track-grid">{likedTracks.map(track => <TrackCard key={track.trackId} track={track}/>)}</div></section>}
+              {playlists.length > 0 && playlists.map(playlist => <section className="offline-library" key={playlist.id}><h3>{playlist.name}</h3><p>{playlist.tracks.length} {playlist.tracks.length === 1 ? "track" : "tracks"} · Saved on this device</p>{playlist.tracks.length ? <div className="track-grid">{playlist.tracks.map(track => <TrackCard key={track.trackId} track={track}/>)}</div> : <p>This playlist is empty.</p>}</section>)}
+              {likedTracks.length === 0 && offlineTracks.length === 0 && playlists.length === 0 && <div className="bottom-callout"><div className="callout-icon"><ListMusic size={23}/></div><div><strong>Nothing saved yet</strong><p>Like a song, create a playlist or download a release to build your library.</p></div><span className="coming-label">ON THIS DEVICE</span></div>}
             </section>
           )}
 
