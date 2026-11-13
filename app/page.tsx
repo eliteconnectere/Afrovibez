@@ -112,7 +112,6 @@ export default function HomePage() {
   const [playerToolsOpen, setPlayerToolsOpen] = useState(false);
   const [bassBoostEnabled, setBassBoostEnabled] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const audioSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
   const sleepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -694,7 +693,6 @@ export default function HomePage() {
         source.connect(filter);
         filter.connect(context.destination);
         audioContextRef.current = context;
-        audioSourceRef.current = source;
         bassFilterRef.current = filter;
       }
       await context.resume();
