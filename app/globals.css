@@ -617,3 +617,6 @@ html[data-theme="dark"] .artist-profile-stats strong,html[data-theme="dark"] .ar
 html[data-theme="dark"] .artist-profile-stats span,html[data-theme="dark"] .artist-profile-stats small,html[data-theme="dark"] .artist-release-row small,html[data-theme="dark"] .artist-profile-sync-note{color:#b5bfd8}
 html[data-theme="dark"] .artist-profile-sync-note{background:#202d4c}
 html[data-theme="dark"] .artist-release-row{border-bottom-color:#394969}
+
+.af-view-transition{animation:afViewEnter .24s cubic-bezier(.2,.75,.25,1) both}
+@keyframes afViewEnter{from{opacity:.35;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
