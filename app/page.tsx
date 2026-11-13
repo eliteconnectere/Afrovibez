@@ -1014,7 +1014,7 @@ export default function HomePage() {
               <div className="charts-header">
                 <div className="eyebrow dark">AFRICA</div>
                 <h1>Top Charts</h1>
-                <p>Charts are not active yet. AfroVibez does not currently collect the listener play-count data needed to rank releases.</p>
+                <p>Ranked using verified plays of at least 30 seconds. No paid plan or artificial chart positions.</p>
               </div>
               {chartsLoading ? (
                 <div className="loading"><LoaderCircle className="spin" /> Loading charts…</div>
@@ -1071,7 +1071,7 @@ export default function HomePage() {
           {view === "feed" && (
             <section className="library-view feed-view">
               <div className="section-heading"><div><div className="eyebrow dark">{t("Your music community")}</div><h2>{t("Following feed")}</h2><p>{t("New releases from artists you follow.")}</p></div></div>
-              {followedArtists.length ? <><div className="feed-following-note">Following {followedArtists.length} {followedArtists.length===1?"artist":"artists"}: {followedArtists.join(", ")}</div>{studioTracks.filter(t=>followedArtists.includes(t.artistName)).length ? <div className="track-grid">{studioTracks.filter(t=>followedArtists.includes(t.artistName)).map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div> : <div className="empty-state"><Radio size={28}/><strong>No new releases from your artists yet</strong><span>When artists you follow publish music, it will appear here.</span></div>}</> : <div className="bottom-callout"><div className="callout-icon"><Radio size={23}/></div><div><strong>Your feed starts with artists you follow</strong><p>Open a song’s More menu or artist profile and choose Follow. Their new approved releases will appear here.</p></div><button className="feed-discover-button" onClick={()=>setView("discover")}>Discover artists</button></div>}
+              {followedArtists.length ? <><div className="feed-following-note">Following {followedArtists.length} {followedArtists.length===1?"artist":"artists"}: {followedArtists.join(", ")}</div>{studioTracks.filter(t=>(t.artistId&&followedArtistIds.includes(t.artistId))||followedArtists.includes(t.artistName)).length ? <div className="track-grid">{studioTracks.filter(t=>(t.artistId&&followedArtistIds.includes(t.artistId))||followedArtists.includes(t.artistName)).map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div> : <div className="empty-state"><Radio size={28}/><strong>No new releases from your artists yet</strong><span>When artists you follow publish music, it will appear here.</span></div>}</> : <div className="bottom-callout"><div className="callout-icon"><Radio size={23}/></div><div><strong>Your feed starts with artists you follow</strong><p>Open a song’s More menu or artist profile and choose Follow. Their new approved releases will appear here.</p></div><button className="feed-discover-button" onClick={()=>setView("discover")}>Discover artists</button></div>}
             </section>
           )}
 
