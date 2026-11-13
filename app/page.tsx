@@ -1116,7 +1116,6 @@ export default function HomePage() {
             <div className="af-tools-grid">
               <button onClick={()=>notify("Cast is not available in this browser yet.","warning","Cast unavailable")}><Radio/><span>Cast</span></button>
               <button onClick={()=>notify("Bass Boost needs the audio equalizer engine; it is not enabled yet.","warning","Bass Boost unavailable")}><Volume2/><span>Bass Boost</span></button>
-              <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat enabled":"Repeat disabled");}}><Repeat/><span>Repeat</span></button>
               <button onClick={()=>{setPlayerToolsOpen(false);document.querySelector(".af-audiomod")?.scrollIntoView({behavior:"smooth",block:"center"});}}><Music2/><span>Audiomod</span></button>
               <button onClick={()=>{if(sleepTimerRef.current)clearTimeout(sleepTimerRef.current);if(sleepTimerMinutes){setSleepTimerMinutes(0);notify("Sleep timer cancelled.");}else{sleepTimerRef.current=setTimeout(()=>{audioRef.current?.pause();setPlaying(false);setSleepTimerMinutes(0);notify("Sleep timer stopped playback.","success");},30*60*1000);setSleepTimerMinutes(30);notify("Sleep timer set for 30 minutes.");}}}><Settings/><span>{sleepTimerMinutes ? "Sleep "+sleepTimerMinutes+"m" : "Sleep Timer"}</span></button>
               <button onClick={()=>notify("HiFi audio is not available for this release yet.","warning","HiFi unavailable")}><Headphones/><span>HiFi</span></button>
