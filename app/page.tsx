@@ -324,7 +324,7 @@ export default function HomePage() {
     if(!track.audioUrl){notify("The full audio file is not available right now.");return;}
     if(!window.confirm(`Save “${track.trackName}” by ${track.artistName} for offline listening? The first download uses internet data. After it is saved, playback on this device can work without mobile data or Wi-Fi.`))return;
     setOfflineBusy(track.trackId);
-    try{const response=await fetch(track.audioUrl);if(!response.ok)throw new Error("Download could not start.");const blob=await response.blob();if(!blob.size)throw new Error("The downloaded audio file was empty.");await saveOfflineBlob(track,blob);setOfflineDownloads(prev=>new Set([...prev,track.trackId]));notify("Saved for offline listening on this device.");}
+    try{const response=await fetch(track.audioUrl);if(!response.ok)throw new Error("Download could not start.");const blob=await response.blob();if(!blob.size)throw new Error("The downloaded audio file was empty.");await saveOfflineBlob(track,blob);setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));notify("Saved for offline listening on this device.");}
     catch(error:any){notify(error?.message||"Offline download failed. Please try again.");}finally{setOfflineBusy(null);}
   };
   const openArtistProfile = (track:Track) => {if(!track.artistId||!artistProfiles[track.artistId]){notify("Artist details are not available right now.");return;}setArtistProfileOpen(true);};
