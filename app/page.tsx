@@ -816,7 +816,7 @@ export default function HomePage() {
               <div className="af-artist-row"><div className="af-artist-avatar">{current.artistName.slice(0,1).toUpperCase()}</div><strong>{current.artistName}</strong><button onClick={()=>{setFollowedArtists(a=>a.includes(current.artistName)?a.filter(x=>x!==current.artistName):[...a,current.artistName]);notify(followedArtists.includes(current.artistName)?"Artist unfollowed":"Artist followed");}}>{followedArtists.includes(current.artistName)?"FOLLOWING":"FOLLOW"}</button></div>
               <p>{current.primaryGenreName || "Music"} · {current.collectionName || "Single"}</p>
             </section>
-            <div className="af-preview-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an approved full-length AfroVibe release."}</div>
+            <div className="af-playback-note">{current.source === "studio" ? "You are listening to an approved full release delivered by AfroVibe Studio." : "You are listening to an approved full-length AfroVibe release."}</div>
           </section>
         </div>
       )}
