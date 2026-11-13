@@ -291,14 +291,25 @@ export default function HomePage() {
   const loadCharts = useCallback(async () => {
     setChartsLoading(true);
     try {
-      const list = await fetchTracks("afrobeats nigeria top", 25);
-      setCharts(list);
-    } catch {
+      const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      if (!base || !key) throw new Error("Charts are not configured.");
+      const response = await fetch(`${base}/rest/v1/rpc/get_public_track_charts`, {
+        method: "POST",
+        headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_limit: 50 })
+      });
+      if (!response.ok) throw new Error("Verified chart data is temporarily unavailable.");
+      const ranked = await response.json() as {track_id:string;stream_count:number;unique_listeners:number}[];
+      const byId = new Map(studioTracks.map(track => [track.studioTrackId, track]));
+      setCharts(ranked.map(row => byId.get(row.track_id)).filter((track): track is Track => Boolean(track)));
+    } catch (cause) {
+      console.warn("Verified AfroVibez charts could not be loaded:", cause);
       setCharts([]);
     } finally {
       setChartsLoading(false);
     }
-  }, [fetchTracks]);
+  }, [studioTracks]);
 
   useEffect(() => { document.documentElement.lang = language; }, [language]);
   useEffect(() => { if(playerOpen&&current) void loadTrackComments(current); }, [playerOpen,current?.studioTrackId]);
