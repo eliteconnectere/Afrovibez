@@ -427,3 +427,12 @@ html[data-theme="dark"] .settings-confirm button:nth-child(2){background:#d93645
 .artist-profile-links{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;margin-top:18px}
 .artist-profile-links a{padding:9px 13px;border-radius:20px;background:#eaf2ff;color:#1457ae;text-decoration:none;font-size:12px;font-weight:750}
 @media(max-width:600px){.artist-profile-sheet{padding:25px 19px}.af-primary-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.af-primary-actions button{min-height:48px}}
+
+
+/* Clear active-state feedback and offline library */
+.af-transport button.active{color:#ff5264;background:#ed435226;border-radius:14px;box-shadow:inset 0 0 0 1px #ed4352}
+.af-repeat-row button.active{background:#ed435226;border-color:#ff5264;color:#ff7582;box-shadow:0 0 0 1px #ed435244}
+.af-primary-actions button:disabled{background:#ffffff12;color:#aeb8d0;border-color:#ffffff20}
+.offline-library{margin:20px 0 28px;padding:18px;border:1px solid #cbdcf3;border-radius:16px;background:#f1f6ff}
+.offline-library h3{margin:0 0 5px;color:#123d70;font-size:18px}
+.offline-library p{margin:0 0 14px;color:#52647b;font-size:13px}
