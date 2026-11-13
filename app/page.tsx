@@ -130,6 +130,7 @@ export default function HomePage() {
   const [playSpeed, setPlaySpeed] = useState(1);
 
   const audioContextRef = useRef<AudioContext | null>(null);
+  const playRequestRef = useRef(0);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
   const [sleepTimerOpen, setSleepTimerOpen] = useState(false);
@@ -520,6 +521,7 @@ export default function HomePage() {
   const playTrack = async (track: Track) => {
     const audio = audioRef.current;
     if (!audio) return;
+    const requestId = ++playRequestRef.current;
     if (current?.trackId === track.trackId && !audio.paused) {
       audio.pause();
       return;
@@ -531,6 +533,7 @@ export default function HomePage() {
     audio.pause();
     if(activeObjectUrlRef.current){URL.revokeObjectURL(activeObjectUrlRef.current);activeObjectUrlRef.current=null;}
     const offlineBlob=await getOfflineBlob(track.trackId);
+    if(requestId!==playRequestRef.current)return;
     if(!offlineBlob&&!track.audioUrl){notify("This song is not saved offline. Connect to the internet to play it.");return;}
     if(!offlineBlob&&!navigator.onLine){notify("This song is not saved offline. Connect to the internet to play or download it.");return;}
     audio.crossOrigin = "anonymous";
