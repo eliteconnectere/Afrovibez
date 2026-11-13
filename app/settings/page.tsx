@@ -37,16 +37,17 @@ const profileDefaults: Profile = { displayName: "", username: "", bio: "" };
 const prefKey = "afrovibez.preferences.v1";
 const profileKey = "afrovibez.profile.v1";
 const localKeys = ["afrovibez.preferences.v1", "afrovibez.profile.v1", "afrovibez.likes.v1", "afrovibez.queue.v1", "afrovibez.playlists.v1", "afrovibez.follows.v1", "afrovibez.keepAudioMode"];
+const offlineDbName = "afrovibez-offline-v1";
 
 const sections: { id: Section; title: string; description: string; icon: typeof UserRound; status?: string }[] = [
   { id: "profile", title: "Your profile", description: "Edit the name and profile details saved on this device.", icon: UserRound, status: "Local profile" },
   { id: "account", title: "Account & security", description: "Registration, sign-in and account protection.", icon: LockKeyhole, status: "Coming later" },
   { id: "notifications", title: "Notifications", description: "Choose the updates you would like AfroVibez to send.", icon: Bell, status: "Preferences only" },
-  { id: "playback", title: "Playback & audio", description: "Control autoplay, volume and how previews play.", icon: Headphones },
+  { id: "playback", title: "Playback & audio", description: "Control autoplay, volume and full-track playback.", icon: Headphones },
   { id: "appearance", title: "Appearance", description: "Choose the original light design or dark mode.", icon: Palette },
   { id: "language", title: "Language", description: "Set the language used throughout the app.", icon: Globe2 },
   { id: "privacy", title: "Privacy & social", description: "Understand what is private and what is shared.", icon: ShieldCheck },
-  { id: "storage", title: "Data & storage", description: "Export or clear information saved in this browser.", icon: Database },
+  { id: "storage", title: "Data & storage", description: "Review, export or clear local settings, library data and offline audio.", icon: Database },
   { id: "help", title: "Help & about", description: "Music catalogue, feature availability and support.", icon: CircleHelp }
 ];
 
@@ -67,6 +68,7 @@ export default function SettingsPage() {
   const [ready, setReady] = useState(false);
   const [notice, setNotice] = useState("");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [offlineStorage, setOfflineStorage] = useState<{ count: number; bytes: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -75,6 +77,19 @@ export default function SettingsPage() {
       setProfile({ ...profileDefaults, ...JSON.parse(localStorage.getItem(profileKey) || "{}") });
     } catch { /* Recover with safe defaults if local data is malformed. */ }
     setReady(true);
+    if (typeof indexedDB !== "undefined") {
+      try {
+        const request = indexedDB.open(offlineDbName, 1);
+        request.onsuccess = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains("tracks")) { setOfflineStorage({ count: 0, bytes: 0 }); db.close(); return; }
+          const read = db.transaction("tracks", "readonly").objectStore("tracks").getAll();
+          read.onsuccess = () => { const rows = read.result || []; setOfflineStorage({ count: rows.length, bytes: rows.reduce((sum: number, row: any) => sum + (row.blob?.size || 0), 0) }); db.close(); };
+          read.onerror = () => { setOfflineStorage(null); db.close(); };
+        };
+        request.onerror = () => setOfflineStorage(null);
+      } catch { setOfflineStorage(null); }
+    } else setOfflineStorage({ count: 0, bytes: 0 });
   }, []);
 
   useEffect(() => {
@@ -106,12 +121,22 @@ export default function SettingsPage() {
   };
   const resetPreferences = () => {
     setPrefs(defaults); setConfirmReset(false);
-    setNotice("Appearance, playback, notification and local profile preferences have been reset.");
+    setNotice("App preferences have been reset. Your local profile, library and offline downloads were kept.");
   };
-  const clearAllData = () => {
+  const clearAllData = async () => {
     localKeys.forEach(key => localStorage.removeItem(key));
-    setPrefs(defaults); setProfile(profileDefaults); setConfirmReset(false);
-    setNotice("AfroVibez data stored by this browser has been cleared. Reload Discover to refresh the library.");
+    try {
+      if (typeof indexedDB !== "undefined") {
+        const request = indexedDB.open(offlineDbName, 1);
+        await new Promise<void>((resolve, reject) => {
+          request.onsuccess = () => { const db = request.result; if (!db.objectStoreNames.contains("tracks")) { db.close(); resolve(); return; } const tx = db.transaction("tracks", "readwrite"); tx.objectStore("tracks").clear(); tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => { db.close(); reject(tx.error); }; };
+          request.onerror = () => reject(request.error);
+        });
+      }
+      setOfflineStorage({ count: 0, bytes: 0 });
+      setPrefs(defaults); setProfile(profileDefaults); setConfirmReset(false);
+      setNotice("Local settings, library data and downloaded audio have been cleared from this browser. Reload AfroVibez.");
+    } catch { setNotice("Some offline audio could not be cleared. Please try again."); }
   };
   const current = sections.find(item => item.id === section);
   const heading = current?.title || "Settings";
@@ -174,14 +199,14 @@ export default function SettingsPage() {
             <div className="settings-footnote">Status: preference storage works on this device. Push delivery, email delivery, artist-follow triggers and notification history are not connected yet.</div>
           </>}
           {section === "playback" && <>
-            <div className="settings-detail-heading"><span className="settings-icon"><Headphones size={19}/></span><div><h2>Playback & audio</h2><p>Control the preview player. Apple catalogue previews are short clips, not full tracks.</p></div></div>
-            <ToggleRow title="Autoplay next preview" description="When a preview ends, continue with the next track in the queue or catalogue." checked={prefs.autoplay} onChange={v => update("autoplay",v)} label="Autoplay next preview"/>
+            <div className="settings-detail-heading"><span className="settings-icon"><Headphones size={19}/></span><div><h2>Playback & audio</h2><p>Control full-length releases published through AfroVibe Studio.</p></div></div>
+            <ToggleRow title="Autoplay next track" description="When a full track ends, continue with the next track in your queue or catalogue." checked={prefs.autoplay} onChange={v => update("autoplay",v)} label="Autoplay next preview"/>
             <ToggleRow title="Higher quality artwork" description="Load larger album artwork where the catalogue provides it. This uses more mobile data." checked={prefs.highQuality} onChange={v => update("highQuality",v)} label="Higher quality artwork"/>
-            <div className="settings-footnote">Gapless playback is not available for separate Apple catalogue preview clips, so it is not presented as an active control.</div>
+            <div className="settings-footnote">Playback uses the full audio files published by approved AfroVibe Studio releases. Availability depends on the artist’s release and download permissions.</div>
             <Row title="Default audio mode" description="Choose the playback speed used when a new preview starts."><select className="setting-select" value={prefs.defaultMode} onChange={e => update("defaultMode",e.target.value as Preferences["defaultMode"])}><option value="normal">Original (1×)</option><option value="sped">Sped Up (1.25×)</option><option value="slowed">Slowed (0.8×)</option><option value="nightcore">Nightcore (1.35×)</option><option value="daycore">Daycore (0.85×)</option></select></Row>
-            <div className="setting-row setting-volume-row"><div><strong>Default player volume</strong><p>{prefs.volume}% · Applied the next time a preview starts.</p><input aria-label="Default player volume" type="range" min="0" max="100" value={prefs.volume} onChange={e => update("volume",Number(e.target.value))}/></div><Volume2 size={20}/></div>
+            <div className="setting-row setting-volume-row"><div><strong>Default player volume</strong><p>{prefs.volume}% · Applied to the next track you play.</p><input aria-label="Default player volume" type="range" min="0" max="100" value={prefs.volume} onChange={e => update("volume",Number(e.target.value))}/></div><Volume2 size={20}/></div>
             <ToggleRow title="Show explicit-content tracks" description="When off, hide catalogue tracks identified as explicit where the catalogue supplies that information." checked={prefs.explicitContent} onChange={v => update("explicitContent",v)} label="Show explicit-content tracks"/>
-            <div className="settings-footnote">Playback settings are saved locally. The app currently plays Apple catalogue preview clips only. Full streaming and offline downloads are not available.</div>
+            <div className="settings-footnote">Playback preferences are saved on this device. Full-track streaming is provided by approved AfroVibe Studio releases. Downloads are stored privately on this device for offline listening.</div>
           </>}
           {section === "appearance" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><Palette size={19}/></span><div><h2>Appearance</h2><p>Choose a complete app-wide appearance. AfroVibez brand accents remain blue, white and red.</p></div></div>
@@ -199,16 +224,17 @@ export default function SettingsPage() {
           {section === "privacy" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><ShieldCheck size={19}/></span><div><h2>Privacy & social</h2><p>Here is what this version stores and what it does not share.</p></div></div>
             <div className="privacy-item"><strong>Device preferences</strong><span>Theme, playback and notification preferences are stored in this browser's local storage.</span></div>
-            <div className="privacy-item"><strong>Library activity</strong><span>Likes, playlists, follows and queue are stored locally on this device. They are not sent to an AfroVibez account or synced.</span></div>
+            <div className="privacy-item"><strong>Library activity</strong><span>Likes, playlists, follows and queue are stored locally on this device. There is no listener sign-in or cross-device library sync in this version.</span></div>
             <div className="privacy-item"><strong>Account details</strong><span>No email address, password or registered account details are collected by this version.</span></div>
-            <div className="privacy-item"><strong>Listening history</strong><span>A listening history is not collected or synced by the app.</span></div>
-            <div className="privacy-item"><strong>Music catalogue requests</strong><span>Search requests are sent to Apple's public music catalogue service to retrieve matching music and preview availability.</span></div>
+            <div className="privacy-item"><strong>Listening history</strong><span>A server-side listening history or cross-device listening profile is not currently implemented.</span></div>
+            <div className="privacy-item"><strong>Music catalogue and playback</strong><span>AfroVibez requests approved release and public artist metadata from the AfroVibe Music backend. Signed media links are used to retrieve release artwork and audio. Search filters the catalogue loaded in this app.</span></div>
             <div className="privacy-item"><strong>Public activity and social feeds</strong><span>Public profiles, comments, messaging, followers and social listening feeds are not connected.</span></div>
             <div className="settings-footnote">Clearing site data in your browser also removes local AfroVibez preferences and library items.</div>
           </>}
           {section === "storage" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><Database size={19}/></span><div><h2>Data & storage</h2><p>Review, export or remove the information saved by this browser.</p></div></div>
-            <div className="privacy-item"><strong>Saved on this device</strong><span>App preferences, local profile fields, liked track IDs, queue, playlists, artist follows and the keep-audio-mode preference.</span></div>
+            <div className="privacy-item"><strong>Saved on this device</strong><span>App preferences, local profile fields, liked track IDs, queue, playlists, artist follows, playback mode and downloaded audio files.</span></div>
+            <div className="settings-status-panel"><strong>Offline audio on this device</strong><p>{offlineStorage === null ? "Storage details are unavailable in this browser." : `${offlineStorage.count} downloaded ${offlineStorage.count === 1 ? "track" : "tracks"} · ${(offlineStorage.bytes / (1024 * 1024)).toFixed(1)} MB used. Audio stays inside AfroVibez and is not included in the data export.`}</p></div>
             <button className="settings-action-button" onClick={exportData}><Download size={17}/> Export my AfroVibez data</button>
             <button className="settings-action-button danger" onClick={() => setConfirmReset(true)}><RotateCcw size={17}/> Reset app preferences</button>
             <button className="settings-action-button danger" onClick={() => setConfirmReset(true)}><Trash2 size={17}/> Clear all AfroVibez data on this device</button>
@@ -216,12 +242,12 @@ export default function SettingsPage() {
           </>}
           {section === "help" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><CircleHelp size={19}/></span><div><h2>Help & information</h2><p>What works in this version and what is still being connected.</p></div></div>
-            <div className="help-line"><Headphones size={18}/><div><strong>Music previews</strong><span>Short previews are supplied by Apple's music catalogue. Availability and clip length vary by track.</span></div></div>
-            <div className="help-line"><Music2 size={18}/><div><strong>Full music streaming & downloads</strong><span>Full-track streaming, offline downloads and licensed catalogue access are not connected yet.</span></div></div>
+            <div className="help-line"><Headphones size={18}/><div><strong>Full-track listening</strong><span>AfroVibez streams approved full-length releases published through AfroVibe Studio.</span></div></div>
+            <div className="help-line"><Music2 size={18}/><div><strong>Offline downloads</strong><span>Where the artist permits downloads, audio can be saved in this browser and played offline from Your Library on this device.</span></div></div>
             <div className="help-line"><Globe2 size={18}/><div><strong>Account sync</strong><span>Playlists, follows, likes and preferences do not sync between devices yet.</span></div></div>
             <div className="help-line"><Bell size={18}/><div><strong>Notifications</strong><span>Notification preferences save locally, but push and email delivery are not connected yet.</span></div></div>
             <div className="help-line"><Mail size={18}/><div><strong>Support</strong><span>A verified AfroVibez support email has not yet been supplied. Support contact will be published before public registration opens.</span></div></div>
-            <div className="settings-status-panel"><strong>About AfroVibez</strong><p>Discover. Listen. Feel. This version is a music catalogue preview experience and does not claim to provide licensed full-track streaming.</p></div>
+            <div className="settings-status-panel"><strong>About AfroVibez</strong><p>Discover. Listen. Feel. AfroVibez is the listener app for approved artist releases published through AfroVibe Studio.</p></div>
           </>}
         </section>
       </>}
