@@ -5,7 +5,7 @@ import {
   Disc3, Headphones, Home, Search, Library, Heart, Play, Pause, SkipBack, SkipForward,
   Music2, Menu, X, ListMusic, ExternalLink, LoaderCircle, Settings, TrendingUp,
   Share2, Plus, BarChart3, MoreVertical, ListPlus, Radio, Info, UserPlus, ListOrdered,
-  Link2, MessageCircle, Send, Copy, Volume2, Repeat, Shuffle, Album
+  Link2, MessageCircle, Send, Copy, Volume2, Repeat, Shuffle, Album, ChevronDown
 } from "lucide-react";
 
 type Track = {
@@ -50,6 +50,11 @@ function genreMatchesCategory(genre: string, category: string) {
 
 
 const sectionsConfig: { id: string; title: string; subtitle: string; term: string }[] = [];
+const countryCodes = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" ");
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
+const countryFlag = (code: string) => String.fromCodePoint(...code.toUpperCase().split("").map(char => 127397 + char.charCodeAt(0)));
+const countryOptions = countryCodes.map(code => ({ code, name: countryNames.of(code) || code, flag: countryFlag(code) })).sort((a,b)=>a.name.localeCompare(b.name));
+
 
 export default function HomePage() {
   const [view, setView] = useState<View>("discover");
@@ -60,6 +65,9 @@ export default function HomePage() {
   const [query, setQuery] = useState("");
   const [input, setInput] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState("US");
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
   const [category, setCategory] = useState("All");
   const [loading, setLoading] = useState(true);
   const [sectionsLoading, setSectionsLoading] = useState(true);
@@ -196,6 +204,10 @@ export default function HomePage() {
       setRecentSearches(Array.isArray(savedSearches) ? savedSearches.filter((x): x is string => typeof x === "string").slice(0,8) : []);
       const savedFollows = JSON.parse(localStorage.getItem("afrovibez.follows.v1") || "[]");
       setFollowedArtists(Array.isArray(savedFollows) ? savedFollows.filter((name): name is string => typeof name === "string") : []);
+      const savedCountry = localStorage.getItem("afrovibez.explore-country.v1");
+      const localeCountry = (navigator.language.split("-")[1] || "US").toUpperCase();
+      const validCountry = countryCodes.includes(savedCountry || "") ? savedCountry! : countryCodes.includes(localeCountry) ? localeCountry : "US";
+      setSelectedCountry(validCountry);
       const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
       setHighQualityArtwork(preferences.highQuality !== false);
       setShowExplicitContent(preferences.explicitContent !== false);
@@ -211,6 +223,7 @@ export default function HomePage() {
       localStorage.setItem("afrovibez.playlists.v1", JSON.stringify(playlists));
       localStorage.setItem("afrovibez.follows.v1", JSON.stringify(followedArtists));
       localStorage.setItem("afrovibez.searches.v1", JSON.stringify(recentSearches));
+      localStorage.setItem("afrovibez.explore-country.v1", selectedCountry);
     } catch { setToast("Browser storage is full; some changes may not persist."); }
   }, [liked, queue, playlists, followedArtists, recentSearches, storageReady]);
 
@@ -826,7 +839,7 @@ export default function HomePage() {
 
           {view === "search" && (
             <section className="library-view search-view">
-              <div className="section-heading"><div><div className="eyebrow dark">FIND YOUR NEXT FAVOURITE</div><h2>Search music</h2><p>Search approved songs, artists and genres across AfroVibez.</p></div></div>
+              <div className="search-title-row"><div className="section-heading"><div><div className="eyebrow dark">FIND YOUR NEXT FAVOURITE</div><h2>Search music</h2><p>Search approved songs, artists and genres across AfroVibez.</p></div></div><button className="country-trigger" type="button" onClick={()=>{setCountrySearch("");setCountryPickerOpen(true);}} aria-label={`Explore by country: ${countryOptions.find(c=>c.code===selectedCountry)?.name || "United States"}`} aria-haspopup="dialog" aria-expanded={countryPickerOpen}><span>{countryFlag(selectedCountry)}</span><ChevronDown size={15}/></button></div>
               <form className="search-page-form" onSubmit={submitSearch}><Search size={19}/><input value={input} onChange={e=>setInput(e.target.value)} placeholder="Songs, artists, albums or genres…" aria-label="Search songs artists albums or genres"/><button type="submit">Search</button></form>
               {!query.trim() ? <><div className="search-section-title"><strong>Browse genres</strong><span>Explore by sound</span></div><div className="search-genre-grid">{categories.filter(c=>c!=="All").slice(0,20).map(c=><button key={c} onClick={()=>{setCategory(c);setQuery("");setInput("");setView("discover");}}>{c}<span>↗</span></button>)}</div>{recentSearches.length>0&&<div className="recent-searches"><div className="search-section-title"><strong>Recent searches</strong><button onClick={()=>setRecentSearches([])}>Clear</button></div>{recentSearches.map(term=><button key={term} onClick={()=>{setInput(term);setQuery(term);setCategory("All");}}><Search size={14}/>{term}</button>)}</div>}<div className="search-section-title"><strong>Recently added</strong><span>Fresh from AfroVibe Studio</span></div><div className="track-grid">{studioTracks.slice(0,8).map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div></> : <><div className="search-section-title"><strong>Results for “{query}”</strong><span>{visibleTracks.length} results</span></div>{visibleTracks.length?<div className="track-grid">{visibleTracks.map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div>:<div className="empty-state"><Search size={28}/><strong>No matching music yet</strong><span>Try another song title, artist name or genre.</span></div>}</>}
             </section>
@@ -921,6 +934,8 @@ export default function HomePage() {
         </div>
       )}
       {toast && <div className="af-toast" role="status">{toast}</div>}
+      {countryPickerOpen && <div className="country-picker-backdrop" role="presentation" onClick={()=>setCountryPickerOpen(false)}><section className="country-picker" role="dialog" aria-modal="true" aria-label="Select music country" onClick={e=>e.stopPropagation()}><header><div><small>EXPLORE MUSIC BY REGION</small><h2>Select a country</h2></div><button type="button" onClick={()=>setCountryPickerOpen(false)} aria-label="Close country selector"><X size={20}/></button></header><input className="country-picker-search" value={countrySearch} onChange={e=>setCountrySearch(e.target.value)} placeholder="Search countries…" aria-label="Search countries"/><div className="country-picker-list">{countryOptions.filter(country=>country.name.toLowerCase().includes(countrySearch.trim().toLowerCase())).map(country=><button type="button" key={country.code} className={selectedCountry===country.code?"selected":""} onClick={()=>{setSelectedCountry(country.code);setCountryPickerOpen(false);notify(`Music region set to ${country.name}.`);}}><span className="country-option-flag">{country.flag}</span><span>{country.name}</span>{selectedCountry===country.code&&<span className="country-option-check">✓</span>}</button>)}</div></section></div>}
+
       {menuTrack && <div className="track-menu-backdrop" onClick={()=>setMenuTrack(null)}><section className="track-menu-sheet" role="dialog" aria-modal="true" onClick={e=>e.stopPropagation()}>
         <div className="sheet-grip"/><button className="sheet-close" onClick={()=>setMenuTrack(null)}><X/></button>
         <div className="sheet-track"><img src={menuTrack.artworkUrl100} alt=""/><div><span>{menuTrack.artistName}</span><strong>{menuTrack.trackName}</strong></div></div>
