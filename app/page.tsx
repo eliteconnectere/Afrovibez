@@ -210,7 +210,7 @@ export default function HomePage() {
   const OFFLINE_DB = "afrovibez-offline-v1";
   const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
-  const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,studioTrackId:track.studioTrackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
+  const saveOfflineBlob = async (track:Track,blob:Blob,artworkBlob:Blob|null)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,studioTrackId:track.studioTrackId,blob,artworkBlob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
   const deleteOfflineBlob = async (id:number):Promise<boolean>=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));return true;}catch{return false;}};
 
   // No third-party catalogue: AfroVibez only plays full-length artist uploads.
@@ -265,7 +265,7 @@ export default function HomePage() {
 
   useEffect(() => {
     try {
-      if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkUrl100,artistId:row.artistId,studioTrackId:row.studioTrackId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
+      if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkBlob instanceof Blob ? URL.createObjectURL(row.artworkBlob) : row.artworkUrl100,artistId:row.artistId,studioTrackId:row.studioTrackId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
       const savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
       const savedLanguage = String(savedPreferences.language || "en").toLowerCase();
       setLanguage(savedLanguage === "french" ? "fr" : savedLanguage === "spanish" ? "es" : savedLanguage === "portuguese" ? "pt" : savedLanguage);
@@ -542,9 +542,9 @@ export default function HomePage() {
         setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:blob.size,total:blob.size,percent:100});
       }
       if(!blob.size)throw new Error("The downloaded audio file was empty.");
-      await saveOfflineBlob({...track,storagePath:path},blob);
+      let artworkBlob:Blob|null=null;\n      try{const artworkResponse=await fetch(track.artworkUrl100,{mode:"cors",cache:"no-store"});if(artworkResponse.ok){const candidate=await artworkResponse.blob();if(candidate.type.startsWith("image/")&&candidate.size>0)artworkBlob=candidate;}}catch(artworkError){console.warn("Artwork could not be cached for offline use:",artworkError);}\n      await saveOfflineBlob({...track,storagePath:path},blob,artworkBlob);
       setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));
-      setOfflineTracks(prev=>prev.filter(item=>item.trackId!==track.trackId).concat({...track,storagePath:path,audioUrl:undefined}));
+      setOfflineTracks(prev=>{const previous=prev.find(item=>item.trackId===track.trackId);if(previous?.artworkUrl100?.startsWith("blob:"))URL.revokeObjectURL(previous.artworkUrl100);return prev.filter(item=>item.trackId!==track.trackId).concat({...track,artworkUrl100:artworkBlob?URL.createObjectURL(artworkBlob):track.artworkUrl100,storagePath:path,audioUrl:undefined});});
       notify("Ready whenever you are. Find it in your Downloads.", "success", "Saved for offline listening");
     }catch(error:any){
       const message=error?.message||"Your download couldn't be completed. Please try again.";
@@ -693,7 +693,7 @@ export default function HomePage() {
       </div>
       <div className="track-info">
         <strong title={track.trackName}>{track.trackName}</strong>
-        <button className="track-artist-link" onClick={()=>openArtistProfile(track)}>{track.artistName}</button>
+        <button className="track-artist-link" onClick={(e)=>{e.stopPropagation();openArtistProfile(track);}}>{track.artistName}</button>
         <small>{track.primaryGenreName || "Music"}</small>
       </div>
       <div className="track-actions">
@@ -1080,7 +1080,7 @@ export default function HomePage() {
               <button onClick={() => {setView("queue");setPlayerOpen(false);}} aria-label={`Open queue, ${queue.length} tracks`}><ListMusic/></button>
             </header>
             <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.35) 95%),url(${current.artworkUrl100?.replace("100x100","600x600")})`}}>
-              <img src={current.artworkUrl100?.replace("100x100","600x600")} alt={`Album artwork for ${current.trackName}`}/>
+              <img className={playing?"af-artwork-rotating":""} src={current.artworkUrl100?.replace("100x100","600x600")} alt={`Album artwork for ${current.trackName}`}/>
             </div>
             <div className="af-track-heading">
               <div><span>{current.artistName}</span><h1>{current.trackName}</h1><small>{current.collectionName || "Single"} · {current.primaryGenreName || "Music"}</small></div>
