@@ -16,6 +16,7 @@ type Track = {
   artworkUrl100: string;
   audioUrl?: string;
   trackViewUrl: string;
+  source?: "studio";
   primaryGenreName?: string;
   trackExplicitness?: string;
   contentAdvisoryRating?: string;
@@ -181,7 +182,7 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+          return { trackId: parseInt(numericId, 16), trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
