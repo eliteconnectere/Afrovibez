@@ -79,7 +79,7 @@ export default function HomePage() {
   const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
   const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
-  const deleteOfflineBlob = async (id:number)=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));}catch{}};
+  const deleteOfflineBlob = async (id:number):Promise<boolean>=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));return true;}catch{return false;}};
 
   // No third-party catalogue: AfroVibez only plays full-length artist uploads.
   const fetchTracks = useCallback(async (_term: string, _limit = 24) => [] as Track[], []);
@@ -326,8 +326,8 @@ export default function HomePage() {
 
   const notify = (message:string) => { setToast(message); window.setTimeout(()=>setToast(""),3000); };
   const removeOfflineDownload = async (track: Track) => {
-    await deleteOfflineBlob(track.trackId);
-    if (!offlineDownloads.has(track.trackId)) notify("Offline download removed from this device.");
+    const removed = await deleteOfflineBlob(track.trackId);
+    notify(removed ? "Offline download removed from this device." : "Could not remove this offline download. Please try again.");
   };
   const downloadTrack = async (track:Track) => {
     if(track.allowDownloads===false){notify("The artist has disabled downloads for this release.");return;}
