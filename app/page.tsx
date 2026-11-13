@@ -18,6 +18,7 @@ type Track = {
   trackViewUrl: string;
   source?: "studio";
   artistId?: string;
+  studioTrackId?: string;
   allowDownloads?: boolean;
   primaryGenreName?: string;
   trackExplicitness?: string;
@@ -94,13 +95,45 @@ export default function HomePage() {
   const catalogueRef = useRef<Track[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const currentTrackIdRef = useRef<number | null>(null);
+  const currentTrackUuidRef = useRef<string | null>(null);
+  const listenedSecondsRef = useRef(0);
+  const lastAudioTimeRef = useRef(0);
+  const recordedStreamsRef = useRef<Set<string>>(new Set());
   const activeObjectUrlRef = useRef<string | null>(null);
   offlineDownloadsRef.current = offlineDownloads;
+
+
+  const getListenerKey = () => {
+    const keyName = "afrovibez.listener-key.v1";
+    let key = localStorage.getItem(keyName);
+    if (!key) {
+      key = typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === "x" ? r : (r & 3 | 8)).toString(16);
+          });
+      localStorage.setItem(keyName, key);
+    }
+    return key;
+  };
+  const recordVerifiedStream = async (trackUuid: string, seconds: number) => {
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!base || !key) return;
+    try {
+      await fetch(`${base}/rest/v1/rpc/record_track_stream`, {
+        method: "POST",
+        headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_track_id: trackUuid, p_listener_key: getListenerKey(), p_listened_seconds: Math.max(30, Math.floor(seconds)) })
+      });
+    } catch (e) { console.warn("AfroVibez stream metric was not recorded:", e); }
+  };
 
   const OFFLINE_DB = "afrovibez-offline-v1";
   const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
-  const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
+  const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,studioTrackId:track.studioTrackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
   const deleteOfflineBlob = async (id:number):Promise<boolean>=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));return true;}catch{return false;}};
 
   // No third-party catalogue: AfroVibez only plays full-length artist uploads.
@@ -153,7 +186,7 @@ export default function HomePage() {
 
   useEffect(() => {
     try {
-      if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkUrl100,artistId:row.artistId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
+      if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkUrl100,artistId:row.artistId,studioTrackId:row.studioTrackId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
       const savedLikes = JSON.parse(localStorage.getItem("afrovibez.likes.v1") || "[]");
       setLiked(new Set(Array.isArray(savedLikes) ? savedLikes.filter((id): id is number => Number.isFinite(id)) : []));
       setQueue((JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[]).filter(t => t.source === "studio"));
@@ -232,7 +265,7 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), artistId:row.artist_id, allowDownloads:row.allow_downloads!==false, trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+          return { trackId: parseInt(numericId, 16), artistId:row.artist_id, studioTrackId:row.id, allowDownloads:row.allow_downloads!==false, trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
@@ -293,10 +326,21 @@ export default function HomePage() {
       setPlaying(false);
       setCurrentTime(0);
     });
-    audio.addEventListener("pause", () => setPlaying(false));
+    audio.addEventListener("pause", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(false); });
     audio.addEventListener("error", () => { setPlaying(false); setToast("This uploaded track could not be played. Please try again."); });
-    audio.addEventListener("play", () => setPlaying(true));
-    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime));
+    audio.addEventListener("play", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(true); });
+    audio.addEventListener("timeupdate", () => {
+      const now = audio.currentTime;
+      const delta = now - lastAudioTimeRef.current;
+      if (!audio.paused && delta > 0 && delta <= 3) listenedSecondsRef.current += delta;
+      lastAudioTimeRef.current = now;
+      const uuid = currentTrackUuidRef.current;
+      if (uuid && listenedSecondsRef.current >= 30 && !recordedStreamsRef.current.has(uuid)) {
+        recordedStreamsRef.current.add(uuid);
+        void recordVerifiedStream(uuid, listenedSecondsRef.current);
+      }
+      setCurrentTime(now);
+    });
     audio.addEventListener("loadedmetadata", () =>
       setDuration(Number.isFinite(audio.duration) ? audio.duration : 0)
     );
@@ -331,7 +375,11 @@ export default function HomePage() {
     setAudioMode(selectedMode);
     audio.playbackRate = selectedMode === "sped" ? 1.25 : selectedMode === "slowed" ? 0.8 : selectedMode === "nightcore" ? 1.35 : selectedMode === "daycore" ? 0.85 : 1;
     currentTrackIdRef.current = track.trackId;
+    currentTrackUuidRef.current = track.studioTrackId || null;
+    listenedSecondsRef.current = 0;
+    lastAudioTimeRef.current = 0;
     setCurrent(track);
+    setPlayerOpen(true);
     setCurrentTime(0);
     setDuration(0);
     try {
