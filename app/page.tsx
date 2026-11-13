@@ -47,6 +47,7 @@ export default function HomePage() {
   const [artistProfiles, setArtistProfiles] = useState<Record<string, any>>({});
   const [artistProfileOpen, setArtistProfileOpen] = useState(false);
   const [offlineDownloads, setOfflineDownloads] = useState<Set<number>>(new Set());
+  const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
   const [offlineBusy, setOfflineBusy] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [playerOpen, setPlayerOpen] = useState(false);
@@ -76,7 +77,7 @@ export default function HomePage() {
   const OFFLINE_DB = "afrovibez-offline-v1";
   const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,1);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
-  const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
+  const saveOfflineBlob = async (track:Track,blob:Blob)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,blob,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});};
 
   // No third-party catalogue: AfroVibez only plays full-length artist uploads.
   const fetchTracks = useCallback(async (_term: string, _limit = 24) => [] as Track[], []);
@@ -124,7 +125,7 @@ export default function HomePage() {
 
   useEffect(() => {
     try {
-      if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<number[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAllKeys();req.onsuccess=()=>resolve(req.result as number[]);req.onerror=()=>reject(req.error);})).then(ids=>setOfflineDownloads(new Set(ids))).catch(()=>{});}
+      if(typeof indexedDB!=="undefined"){void openOfflineDb().then(db=>new Promise<any[]>((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);})).then(rows=>{setOfflineDownloads(new Set(rows.map(row=>row.trackId)));setOfflineTracks(rows.map(row=>({trackId:row.trackId,trackName:row.trackName,artistName:row.artistName,artworkUrl100:row.artworkUrl100,artistId:row.artistId,primaryGenreName:row.primaryGenreName,collectionName:row.collectionName,allowDownloads:row.allowDownloads!==false,trackViewUrl:window.location.href,source:"studio"} as Track)));}).catch(()=>{});}
       setLiked(new Set());
       setQueue((JSON.parse(localStorage.getItem("afrovibez.queue.v1") || "[]") as Track[]).filter(t => t.source === "studio"));
       setPlaylists((JSON.parse(localStorage.getItem("afrovibez.playlists.v1") || "[]") as {id:string;name:string;tracks:Track[]}[]).map(p => ({...p, tracks:p.tracks.filter(t => t.source === "studio")})));
@@ -156,9 +157,9 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    catalogueRef.current = [...studioTracks, ...tracks, ...charts, ...Object.values(sectionTracks).flat()]
+    catalogueRef.current = [...studioTracks, ...offlineTracks, ...tracks, ...charts, ...Object.values(sectionTracks).flat()]
       .filter((track, index, all) => all.findIndex(item => item.trackId === track.trackId) === index);
-  }, [tracks, studioTracks, charts, sectionTracks]);
+  }, [tracks, studioTracks, offlineTracks, charts, sectionTracks]);
 
   useEffect(() => {
     const stay = localStorage.getItem("afrovibez.keepAudioMode") === "true";
@@ -280,7 +281,6 @@ export default function HomePage() {
   }, []);
 
   const playTrack = async (track: Track) => {
-    if (!track.audioUrl) return;
     const audio = audioRef.current;
     if (!audio) return;
     if (current?.trackId === track.trackId && !audio.paused) {
@@ -294,6 +294,7 @@ export default function HomePage() {
     audio.pause();
     if(activeObjectUrlRef.current){URL.revokeObjectURL(activeObjectUrlRef.current);activeObjectUrlRef.current=null;}
     const offlineBlob=await getOfflineBlob(track.trackId);
+    if(!offlineBlob&&!track.audioUrl){notify("This song is not saved offline. Connect to the internet to play it.");return;}
     if(!offlineBlob&&!navigator.onLine){notify("This song is not saved offline. Connect to the internet to play or download it.");return;}
     if(offlineBlob){activeObjectUrlRef.current=URL.createObjectURL(offlineBlob);audio.src=activeObjectUrlRef.current;}else{audio.src=track.audioUrl;}
     let savedPreferences: Record<string, unknown> = {};
@@ -724,9 +725,10 @@ export default function HomePage() {
                   <p>Liked tracks and personal collections will live here.</p>
                 </div>
               </div>
+              {offlineTracks.length > 0 && <section className="offline-library"><h3>Downloaded for offline listening</h3><p>These songs are stored on this device and can play without an internet connection.</p><div className="track-grid">{offlineTracks.map((track,index)=><TrackCard key={track.trackId} track={track} index={index}/>)}</div></section>}
               {liked.size > 0 ? (
                 <div className="track-grid">
-                  {tracks.concat(charts).filter((t) => liked.has(t.trackId)).map((track) => (
+                  {studioTracks.concat(offlineTracks).filter((t,index,all) => liked.has(t.trackId) && all.findIndex(x=>x.trackId===t.trackId)===index).map((track) => (
                     <TrackCard key={track.trackId} track={track} />
                   ))}
                 </div>
