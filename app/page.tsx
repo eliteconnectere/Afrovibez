@@ -229,11 +229,14 @@ export default function HomePage() {
       const legacyNames=JSON.parse(localStorage.getItem("afrovibez.follows.v1")||"[]");
       const legacyArtists=Object.values(artistProfiles).filter((artist:any)=>Array.isArray(legacyNames)&&legacyNames.includes(artist.stage_name));
       if(user.id&&legacyArtists.length)await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},body:JSON.stringify(legacyArtists.map((artist:any)=>({artist_id:artist.id,follower_id:user.id})))});
-      const already=followedArtistIds.includes(artistId)||legacyNames.includes(stageName);
+      const already=followedArtistIds.includes(artistId);
       const response=already
         ? await fetch(`${base}/rest/v1/studio_artist_follows?artist_id=eq.${artistId}&follower_id=eq.${user.id}`,{method:"DELETE",headers:{apikey:key,Authorization:`Bearer ${token}`}})
         : await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},body:JSON.stringify({artist_id:artistId,follower_id:user.id})});
       if(!response.ok)throw new Error(await response.text()||"The follow could not be saved.");
+      setFollowedArtistIds(previous=>already?previous.filter(id=>id!==artistId):previous.includes(artistId)?previous:[...previous,artistId]);
+      setFollowedArtists(previous=>already?previous.filter(name=>name!==stageName):previous.includes(stageName)?previous:[...previous,stageName]);
+      localStorage.setItem("afrovibez.follows.v1",JSON.stringify(already?legacyNames.filter((name:string)=>name!==stageName):Array.from(new Set([...legacyNames,stageName]))));
       await loadArtistSocial(Object.values(artistProfiles));
       notify(already?"Artist unfollowed":"Artist followed","success");
     }catch(error:any){notify(error?.message||"Could not update your follow. Enable Anonymous Sign-Ins in Supabase Auth settings and try again.","error");}
@@ -537,7 +540,8 @@ export default function HomePage() {
     audio.volume = Math.max(0, Math.min(100, Number(savedPreferences.volume ?? 85))) / 100;
     const selectedMode = keepAudioMode ? audioMode : ((savedPreferences.defaultMode as typeof audioMode) || "normal");
     setAudioMode(selectedMode);
-    audio.playbackRate = selectedMode === "sped" ? 1.25 : selectedMode === "slowed" ? 0.8 : selectedMode === "nightcore" ? 1.35 : selectedMode === "daycore" ? 0.85 : 1;
+    const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;
+    audio.playbackRate=modeRate*playSpeed*Math.pow(2,pitch/12);
     currentTrackIdRef.current = track.trackId;
     currentTrackUuidRef.current = track.studioTrackId || null;
     listenedSecondsRef.current = 0;
@@ -734,6 +738,7 @@ export default function HomePage() {
     setAudioModOpen(true);
   };
 
+  const effectNodesRef = useRef<{source:MediaElementAudioSourceNode; bass:BiquadFilterNode; low:BiquadFilterNode; high:BiquadFilterNode; distortion:WaveShaperNode; delay:DelayNode; delayWet:GainNode; dry:GainNode; convolver:ConvolverNode; reverbWet:GainNode} | null>(null);
   const ensureAudioGraph = async () => {
     const audio = audioRef.current;
     if (!audio) throw new Error("Start a track before changing sound effects.");
@@ -743,28 +748,42 @@ export default function HomePage() {
       if (!AudioContextClass) throw new Error("Audio effects are not supported in this browser.");
       context = new AudioContextClass();
       const source = context.createMediaElementSource(audio);
-      const filter = context.createBiquadFilter();
-      filter.type = "lowshelf";
-      filter.frequency.value = 120;
-      filter.gain.value = bassLevel * 0.12;
-      source.connect(filter);
-      filter.connect(context.destination);
-      audioContextRef.current = context;
-      bassFilterRef.current = filter;
+      const bass = context.createBiquadFilter(); bass.type="lowshelf"; bass.frequency.value=120;
+      const distortion = context.createWaveShaper(); distortion.oversample="4x";
+      const high = context.createBiquadFilter(); high.type="highpass"; high.frequency.value=20;
+      const low = context.createBiquadFilter(); low.type="lowpass"; low.frequency.value=20000;
+      const delay = context.createDelay(1.5); delay.delayTime.value=.28;
+      const delayWet = context.createGain(); delayWet.gain.value=0;
+      const dry = context.createGain(); dry.gain.value=1;
+      const convolver = context.createConvolver();
+      const impulseLength=Math.floor(context.sampleRate*1.8); const impulse=context.createBuffer(2,impulseLength,context.sampleRate);
+      for(let channel=0;channel<2;channel++){const data=impulse.getChannelData(channel);for(let i=0;i<impulseLength;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/impulseLength,2.4);}
+      convolver.buffer=impulse;
+      const reverbWet=context.createGain(); reverbWet.gain.value=0;
+      source.connect(bass); bass.connect(distortion); distortion.connect(high); high.connect(low);
+      low.connect(dry); dry.connect(context.destination);
+      low.connect(delay); delay.connect(delayWet); delayWet.connect(context.destination);
+      low.connect(convolver); convolver.connect(reverbWet); reverbWet.connect(context.destination);
+      audioContextRef.current=context; bassFilterRef.current=bass;
+      effectNodesRef.current={source,bass,low,high,distortion,delay,delayWet,dry,convolver,reverbWet};
     }
     await context.resume();
     return context;
   };
+  const updateAudioEffects = async (next:{bass?:number;distortion?:boolean;reverb?:boolean;delay?:boolean;lowPass?:number;highPass?:number}) => {
+    const context=await ensureAudioGraph(); const nodes=effectNodesRef.current!; const now=context.currentTime;
+    if(next.bass!==undefined)nodes.bass.gain.setTargetAtTime(next.bass*.18,now,.04);
+    if(next.distortion!==undefined){const amount=next.distortion?34:0;const curve=new Float32Array(44100);for(let i=0;i<curve.length;i++){const x=i*2/curve.length-1;curve[i]=next.distortion?((3+amount)*x*20*Math.PI/180)/(Math.PI+amount*Math.abs(x)):x;}nodes.distortion.curve=next.distortion?curve:null;}
+    if(next.reverb!==undefined)nodes.reverbWet.gain.setTargetAtTime(next.reverb?.22:0,now,.08);
+    if(next.delay!==undefined)nodes.delayWet.gain.setTargetAtTime(next.delay?.2:0,now,.08);
+    if(next.lowPass!==undefined)nodes.low.frequency.setTargetAtTime(next.lowPass?Math.max(250,20000-next.lowPass*185):20000,now,.05);
+    if(next.highPass!==undefined)nodes.high.frequency.setTargetAtTime(next.highPass?Math.min(8000,20+next.highPass*79.8):20,now,.05);
+  };
 
   const setBass = async (value:number) => {
-    setBassLevel(value);
-    setBassBoostEnabled(value > 0);
-    try {
-      const context = await ensureAudioGraph();
-      bassFilterRef.current?.gain.setTargetAtTime(value * 0.12, context.currentTime, 0.06);
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Bass control is unavailable for this playback.", "warning", "Audio effect unavailable");
-    }
+    setBassLevel(value); setBassBoostEnabled(value>0);
+    try{await updateAudioEffects({bass:value});}
+    catch(error){notify(error instanceof Error?error.message:"Bass control is unavailable for this playback.","warning","Audio effect unavailable");}
   };
 
   const toggleBassBoost = () => {
@@ -793,15 +812,14 @@ export default function HomePage() {
     const p=presets[preset]; if(!p)return;
     setPlaySpeed(p.speed); setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setPitch(p.pitch);
     setDistortionEnabled(p.distort); setReverbEnabled(p.reverb); setDelayEnabled(p.delay); setLowPass(p.low); setHighPass(p.high);
-    if(audioRef.current) audioRef.current.playbackRate=p.speed*Math.pow(2,p.pitch/12);
-    void ensureAudioGraph().then(ctx=>bassFilterRef.current?.gain.setTargetAtTime(p.bass*.12,ctx.currentTime,.06)).catch(()=>{});
-    notify(preset+" preset selected");
+    if(audioRef.current)audioRef.current.playbackRate=p.speed*Math.pow(2,p.pitch/12);
+    void updateAudioEffects({bass:p.bass,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high}).catch(error=>notify(error instanceof Error?error.message:"Could not apply this preset.","error"));
+    notify(preset+" preset applied to the current track");
   };
 
   const applyAudioMode = (mode: typeof audioMode) => {
     setAudioMode(mode);
-    if (audioRef.current) audioRef.current.playbackRate =
-      mode === "sped" ? 1.25 : mode === "slowed" ? 0.8 : mode === "nightcore" ? 1.35 : mode === "daycore" ? 0.85 : 1;
+    if(audioRef.current){const rate=mode==="sped"?1.25:mode==="slowed"?.8:mode==="nightcore"?1.35:mode==="daycore"?.85:1;audioRef.current.playbackRate=rate*playSpeed*Math.pow(2,pitch/12);}
     notify(mode === "normal" ? "Original speed" : `${mode === "sped" ? "Sped Up" : mode === "slowed" ? "Slowed" : mode === "nightcore" ? "Nightcore" : "Daycore"} mode enabled`);
   };
 
