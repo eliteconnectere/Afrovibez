@@ -506,7 +506,7 @@ export default function HomePage() {
       if(!base||!key||!track.studioTrackId)throw new Error("This release is missing its download information. Refresh AfroVibez and try again.");
       // Re-check the artist's current permission immediately before saving. The catalogue
       // can stay open for hours, so a cached permission must never override a new lock.
-      const check=await fetch(`${base}/rest/v1/studio_tracks?select=status,allow_downloads,audio_path&id=eq.${track.studioTrackId}`,{headers:{apikey:key,Authorization:`Bearer ${key}`,Cache:"no-store"}});
+      const check=await fetch(`${base}/rest/v1/studio_tracks?select=status,allow_downloads,audio_path&id=eq.${track.studioTrackId}`,{headers:{apikey:key,Authorization:`Bearer ${key}`},cache:"no-store"});
       if(!check.ok)throw new Error("We couldn't verify this artist's download setting. Please try again.");
       const rows=await check.json();
       const latest=rows?.[0];
@@ -529,12 +529,12 @@ export default function HomePage() {
       let blob:Blob;
       if(response.body&&typeof response.body.getReader==="function"){
         const reader=response.body.getReader();
-        const chunks:Uint8Array[]=[];
+        const chunks:ArrayBuffer[]=[];
         let loaded=0;
         while(true){
           const {done,value}=await reader.read();
           if(done)break;
-          if(value){chunks.push(value);loaded+=value.byteLength;setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded,total,percent:total?Math.min(100,Math.round(loaded/total*100)):null});}
+          if(value){const chunk=new ArrayBuffer(value.byteLength);new Uint8Array(chunk).set(value);chunks.push(chunk);loaded+=value.byteLength;setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded,total,percent:total?Math.min(100,Math.round(loaded/total*100)):null});}
         }
         blob=new Blob(chunks,{type:response.headers.get("content-type")||"audio/mpeg"});
       }else{
