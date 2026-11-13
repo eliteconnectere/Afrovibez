@@ -191,7 +191,10 @@ export default function HomePage() {
       const userResponse=await fetch(`${base}/auth/v1/user`,{headers:{apikey:key,Authorization:`Bearer ${token}`}});
       if(!userResponse.ok)throw new Error("Could not verify your listener account. Please try again.");
       const user=await userResponse.json();
-      const already=followedArtistIds.includes(artistId);
+      const legacyNames=JSON.parse(localStorage.getItem("afrovibez.follows.v1")||"[]");
+      const legacyArtists=Object.values(artistProfiles).filter((artist:any)=>Array.isArray(legacyNames)&&legacyNames.includes(artist.stage_name));
+      if(user.id&&legacyArtists.length)await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},body:JSON.stringify(legacyArtists.map((artist:any)=>({artist_id:artist.id,follower_id:user.id})))});
+      const already=followedArtistIds.includes(artistId)||legacyNames.includes(stageName);
       const response=already
         ? await fetch(`${base}/rest/v1/studio_artist_follows?artist_id=eq.${artistId}&follower_id=eq.${user.id}`,{method:"DELETE",headers:{apikey:key,Authorization:`Bearer ${token}`}})
         : await fetch(`${base}/rest/v1/studio_artist_follows`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Prefer:"resolution=ignore-duplicates,return=minimal"},body:JSON.stringify({artist_id:artistId,follower_id:user.id})});
