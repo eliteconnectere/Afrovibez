@@ -68,23 +68,12 @@ export default function HomePage() {
 
   // No third-party catalogue: AfroVibez only plays full-length artist uploads.
   const fetchTracks = useCallback(async (_term: string, _limit = 24) => [] as Track[], []);
-  const loadTracks = useCallback(
-    async (term: string) => {
-      setLoading(true);
-      setError("");
-      try {
-        const results = await fetchTracks(term, 30);
-        setTracks(results);
-        if (!results.length) setError("No matching tracks were returned. Try another search.");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not load music. Check your connection and retry.");
-        setTracks([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [fetchTracks]
-  );
+  const loadTracks = useCallback(async (_term: string) => {
+    setLoading(true);
+    setError("");
+    setTracks([]);
+    setLoading(false);
+  }, []);
 
   const loadSections = useCallback(async () => {
     setSectionsLoading(true);
