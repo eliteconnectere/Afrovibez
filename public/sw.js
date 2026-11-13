@@ -1,5 +1,5 @@
 const CACHE_NAME = "afrovibez-shell-v1";
-const SHELL_URLS = ["/", "/manifest.webmanifest"];
+const SHELL_URLS = ["/", "/settings", "/manifest.webmanifest"];
 
 self.addEventListener("install", event => {
   event.waitUntil((async () => {
