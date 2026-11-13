@@ -401,8 +401,8 @@ export default function HomePage() {
 
   const playAdjacent = (direction: -1 | 1) => {
     if (!current) return;
-    const playable = studioTracks
-      .filter((t, index, all) => !!t.audioUrl && all.findIndex(x => x.trackId === t.trackId) === index);
+    const playable = studioTracks.concat(offlineTracks)
+      .filter((t, index, all) => (!!t.audioUrl || offlineDownloads.has(t.trackId)) && all.findIndex(x => x.trackId === t.trackId) === index);
     if (!playable.length) return;
     if (shuffleRef.current && direction > 0) {
       const choices = playable.filter(t => t.trackId !== current.trackId);
@@ -444,7 +444,7 @@ export default function HomePage() {
         <button
           className="cover-play"
           onClick={() => playTrack(track)}
-          disabled={!track.audioUrl}
+          disabled={!track.audioUrl && !offlineDownloads.has(track.trackId)}
           aria-label={track.audioUrl ? ("Play full release") : "Playback unavailable"}
         >
           {current?.trackId === track.trackId && playing ? (
@@ -492,7 +492,7 @@ export default function HomePage() {
                 <button
                   className="row-play"
                   onClick={() => playTrack(track)}
-                  disabled={!track.audioUrl}
+                  disabled={!track.audioUrl && !offlineDownloads.has(track.trackId)}
                   aria-label="Play"
                 >
                   {current?.trackId === track.trackId && playing ? (
@@ -678,7 +678,7 @@ export default function HomePage() {
                         <button
                           className="chart-play"
                           onClick={() => playTrack(track)}
-                          disabled={!track.audioUrl}
+                          disabled={!track.audioUrl && !offlineDownloads.has(track.trackId)}
                         >
                           {current?.trackId === track.trackId && playing ? (
                             <Pause fill="currentColor" size={14} />
