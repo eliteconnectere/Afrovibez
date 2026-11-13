@@ -1129,7 +1129,7 @@ export default function HomePage() {
         <div className="full-player-backdrop" role="dialog" aria-modal="true" aria-label="Now playing">
           <section className="full-player af-now-playing">
             <header className="af-player-topbar">
-              <button onClick={() => setPlayerOpen(false)} aria-label="Close player"><X/></button>
+              <button onClick={() => setPlayerOpen(false)} aria-label="Collapse player"><ChevronDown/></button>
               <div><small>NOW PLAYING</small><strong>AFROVIBEZ</strong></div>
               <button onClick={() => {setView("queue");setPlayerOpen(false);}} aria-label={`Open queue, ${queue.length} tracks`}><ListMusic/></button>
             </header>
