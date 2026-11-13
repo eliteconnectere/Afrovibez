@@ -1,0 +1,10 @@
+{
+  "name": "AfroVibez",
+  "short_name": "AfroVibez",
+  "description": "Discover and listen to full-length music releases from AfroVibe artists.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f8fc",
+  "theme_color": "#1769d2"
+}
