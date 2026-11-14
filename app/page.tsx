@@ -289,9 +289,12 @@ export default function HomePage() {
        });
        if(remains)throw new Error("The offline file is still present in local storage.");
        if(current?.trackId===id&&activeObjectUrlRef.current){
+         if(tempoRampRef.current!==null){cancelAnimationFrame(tempoRampRef.current);tempoRampRef.current=null;}
          const audio=audioRef.current;
          audio?.pause();
          if(audio){audio.removeAttribute("src");audio.load();}
+         setPlaying(false);setCurrent(null);setPlayerOpen(false);setCurrentTime(0);setDuration(0);
+         currentTrackIdRef.current=null;currentTrackUuidRef.current=null;
          URL.revokeObjectURL(activeObjectUrlRef.current);
          activeObjectUrlRef.current=null;
        }
@@ -616,6 +619,7 @@ export default function HomePage() {
       return;
     }
     audio.pause();
+    if(tempoRampRef.current!==null){cancelAnimationFrame(tempoRampRef.current);tempoRampRef.current=null;}
     if(activeObjectUrlRef.current){URL.revokeObjectURL(activeObjectUrlRef.current);activeObjectUrlRef.current=null;}
     const offlineBlob=await getOfflineBlob(track.trackId);
     if(requestId!==playRequestRef.current)return;
@@ -910,18 +914,16 @@ export default function HomePage() {
       const started=performance.now();
       const duration=220;
       const param=nodes.soundTouch.parameters.get("playbackRate");
-      await new Promise<void>(resolve=>{
-        const step=(now:number)=>{
-          const progress=Math.min(1,(now-started)/duration);
-          const eased=progress*progress*(3-2*progress);
-          const next=startRate+(rate-startRate)*eased;
-          audio.playbackRate=next;
-          param?.setValueAtTime(next,context.currentTime);
-          if(progress<1)tempoRampRef.current=requestAnimationFrame(step);
-          else {tempoRampRef.current=null;audio.playbackRate=rate;param?.setValueAtTime(rate,context.currentTime);resolve();}
-        };
-        tempoRampRef.current=requestAnimationFrame(step);
-      });
+      const step=(now:number)=>{
+        const progress=Math.min(1,(now-started)/duration);
+        const eased=progress*progress*(3-2*progress);
+        const next=startRate+(rate-startRate)*eased;
+        audio.playbackRate=next;
+        param?.setValueAtTime(next,context.currentTime);
+        if(progress<1)tempoRampRef.current=requestAnimationFrame(step);
+        else {tempoRampRef.current=null;audio.playbackRate=rate;param?.setValueAtTime(rate,context.currentTime);}
+      };
+      tempoRampRef.current=requestAnimationFrame(step);
     } catch(error) {
       // Keep basic pitch-preserving speed available if AudioWorklet cannot start.
       audio.preservesPitch=true;
@@ -993,6 +995,7 @@ export default function HomePage() {
       "Muffled":{speed:1,bass:0,pitch:0,distort:false,reverb:false,delay:false,low:65,high:0}
     };
     const p=presets[preset]; if(!p)return;
+    if(tempoRampRef.current!==null){cancelAnimationFrame(tempoRampRef.current);tempoRampRef.current=null;}
     setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setSubBassLevel(0); setBassPunch(0); setPitch(p.pitch);
     setDistortionEnabled(p.distort); setReverbEnabled(p.reverb); setDelayEnabled(p.delay); setLowPass(p.low); setHighPass(p.high);
     void (async()=>{
