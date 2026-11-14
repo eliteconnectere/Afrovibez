@@ -838,7 +838,7 @@ export default function HomePage() {
 
   const openAudioMod = () => {
     setPlayerToolsOpen(false);
-    setAudioModOpen(true);
+    window.setTimeout(()=>document.querySelector(".af-audiomod")?.scrollIntoView({behavior:"smooth",block:"center"}),80);
   };
 
   const effectNodesRef = useRef<{source:MediaElementAudioSourceNode; soundTouch:AudioWorkletNode; bass:BiquadFilterNode; subBass:BiquadFilterNode; punch:BiquadFilterNode; low:BiquadFilterNode; high:BiquadFilterNode; distortion:WaveShaperNode; delay:DelayNode; delayWet:GainNode; delayFeedback:GainNode; dry:GainNode; convolver:ConvolverNode; reverbWet:GainNode; compressor:DynamicsCompressorNode} | null>(null);
@@ -1562,7 +1562,15 @@ export default function HomePage() {
               <button onClick={()=>playAdjacent(1)} aria-label="Next track"><SkipForward fill="currentColor"/></button>
               <button className={shuffleEnabled?"active":""} onClick={()=>{const v=!shuffleEnabled;shuffleRef.current=v;setShuffleEnabled(v);notify(v?"Shuffle enabled":"Shuffle disabled");}} aria-label="Toggle shuffle" aria-pressed={shuffleEnabled}><Shuffle/></button>
             </div>
-            <div className="af-repeat-row">
+<div className="af-audiomod">
+              <div className="af-section-title"><strong>Audiomod</strong><label>Stay on <input type="checkbox" checked={keepAudioMode} onChange={e=>{setKeepAudioMode(e.target.checked);localStorage.setItem("afrovibez.keepAudioMode",String(e.target.checked));}}/><span/></label></div>
+              <div className="af-mode-list">
+                {([{id:"sped",label:"Sped Up"},{id:"slowed",label:"Slowed"},{id:"nightcore",label:"Nightcore"},{id:"daycore",label:"Daycore"},{id:"normal",label:"Original"}] as const).map(mode=><button key={mode.id} className={audioMode===mode.id?"selected":""} onClick={()=>applyAudioMode(mode.id)}><span>{mode.label}</span><small>{mode.id==="normal"?"1.0×":mode.id==="sped"?"1.25×":mode.id==="slowed"?"0.8×":mode.id==="nightcore"?"1.35×":"0.85×"}</small></button>)}
+              </div>
+            </div>
+              <button className="af-audiomod-share" onClick={()=>setAudioModOpen(true)}>Open Audiomod Studio</button>
+            </div>
+                        <div className="af-repeat-row">
               <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat enabled":"Repeat disabled");}} aria-pressed={repeatEnabled}><Repeat/> Repeat {repeatEnabled?"On":"Off"}</button>
               <button onClick={()=>{setView("queue");setPlayerOpen(false);}}><ListMusic/> Queue ({queue.length})</button>
             </div>
