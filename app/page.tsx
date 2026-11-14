@@ -972,7 +972,7 @@ export default function HomePage() {
     setReverbEnabled(false); setDelayEnabled(false); setPitch(0); setLowPass(0); setHighPass(0); setPlaySpeed(1);
     const context=audioContextRef.current;
     const nodes=effectNodesRef.current;
-    if(audioRef.current){audioRef.current.playbackRate=1;audioRef.current.preservesPitch=Boolean(nodes);}
+    if(audioRef.current){audioRef.current.playbackRate=1;audioRef.current.preservesPitch=true;}
     if(context&&nodes){
       const now=context.currentTime;
       nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(1,now);
@@ -996,7 +996,7 @@ export default function HomePage() {
     void (async()=>{
       try{
         await setTempo(p.speed);
-        const context=audioContextRef.current!;
+        const context=await ensureAudioGraph();
         const nodes=effectNodesRef.current!;
         nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(p.pitch,context.currentTime);
         await updateAudioEffects({bass:p.bass,subBass:0,punch:0,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high});
