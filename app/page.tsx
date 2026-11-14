@@ -250,9 +250,56 @@ export default function HomePage() {
   const openOfflineDb = () => new Promise<IDBDatabase>((resolve,reject)=>{const request=indexedDB.open(OFFLINE_DB,2);request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("tracks"))request.result.createObjectStore("tracks",{keyPath:"trackId"});if(!request.result.objectStoreNames.contains("assets"))request.result.createObjectStore("assets",{keyPath:"key"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
   const cacheOfflineAsset = async(key:string,blob:Blob,data?:any)=>{if(!blob.size||!blob.type.startsWith("image/"))return;const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("assets","readwrite");tx.objectStore("assets").put({key,blob,data,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
   const getOfflineAssets = async()=>{const db=await openOfflineDb();const rows=await new Promise<any[]>((resolve,reject)=>{const tx=db.transaction("assets","readonly");const req=tx.objectStore("assets").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);});db.close();return rows;};
-  const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
+  const getOfflineBlob = async (id:number):Promise<Blob|null>=>{let db:IDBDatabase|null=null;try{db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db!.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}finally{db?.close();}};
   const saveOfflineBlob = async (track:Track,blob:Blob,artworkBlob:Blob,artistProfile:any,artistAvatarBlob:Blob|null)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,studioTrackId:track.studioTrackId,blob,artworkBlob,artistAvatarBlob,artistProfile,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,trackViewUrl:track.trackViewUrl,source:track.source,trackExplicitness:track.trackExplicitness,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
-  const deleteOfflineBlob = async (id:number):Promise<boolean>=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));return true;}catch{return false;}};
+  const deleteOfflineBlob = async (id:number):Promise<boolean>=>{
+     let db:IDBDatabase|null=null;
+     try{
+       db=await openOfflineDb();
+       const removedArtistId=await new Promise<string|null>((resolve,reject)=>{
+         const tx=db!.transaction(["tracks","assets"],"readwrite");
+         const tracks=tx.objectStore("tracks");
+         const assets=tx.objectStore("assets");
+         const get=tracks.get(id);
+         get.onsuccess=()=>{
+           const removed=get.result;
+           const all=tracks.getAll();
+           all.onsuccess=()=>{
+             tracks.delete(id);
+             const artistId=removed?.artistId?String(removed.artistId):null;
+             if(artistId&&!all.result.some((row:any)=>row.trackId!==id&&String(row.artistId||"")===artistId))assets.delete(`artist-profile:${artistId}`);
+             (tx as any).__removedArtistId=artistId;
+           };
+           all.onerror=()=>{try{tx.abort();}catch{}};
+         };
+         get.onerror=()=>{try{tx.abort();}catch{}};
+         tx.oncomplete=()=>resolve((tx as any).__removedArtistId||null);
+         tx.onerror=()=>reject(tx.error);
+         tx.onabort=()=>reject(tx.error||new Error("Offline download removal was cancelled."));
+       });
+       const remains=await new Promise<boolean>((resolve,reject)=>{
+         const tx=db!.transaction("tracks","readonly");
+         const req=tx.objectStore("tracks").get(id);
+         req.onsuccess=()=>resolve(Boolean(req.result));
+         req.onerror=()=>reject(req.error);
+       });
+       if(remains)throw new Error("The offline file is still present in local storage.");
+       if(current?.trackId===id&&activeObjectUrlRef.current){
+         const audio=audioRef.current;
+         audio?.pause();
+         if(audio){audio.removeAttribute("src");audio.load();}
+         URL.revokeObjectURL(activeObjectUrlRef.current);
+         activeObjectUrlRef.current=null;
+       }
+       const removedTrack=offlineTracks.find(track=>track.trackId===id);
+       if(removedTrack?.artworkUrl100?.startsWith("blob:"))URL.revokeObjectURL(removedTrack.artworkUrl100);
+       setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});
+       setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));
+       if(removedArtistId)setArtistProfiles(prev=>{const profile=prev[removedArtistId];if(profile?.avatarUrl?.startsWith("blob:"))URL.revokeObjectURL(profile.avatarUrl);return {...prev,[removedArtistId]:{...profile,avatarUrl:""}};});
+       return true;
+     }catch(error){console.error("Offline download removal failed:",error);return false;}
+     finally{db?.close();}
+   };
   const updateOfflineTrackVisuals = async(id:number,artworkBlob?:Blob|null,artistAvatarBlob?:Blob|null)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");const store=tx.objectStore("tracks");const req=store.get(id);req.onsuccess=()=>{if(req.result){if(artworkBlob)req.result.artworkBlob=artworkBlob;if(artistAvatarBlob)req.result.artistAvatarBlob=artistAvatarBlob;store.put(req.result);}};tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
 
   // Every discovery surface is built from real, approved AfroVibe Studio releases.
@@ -577,10 +624,10 @@ export default function HomePage() {
     audio.volume = Math.max(0, Math.min(100, Number(savedPreferences.volume ?? 85))) / 100;
     const selectedMode = keepAudioMode ? audioMode : ((savedPreferences.defaultMode as typeof audioMode) || "normal");
     setAudioMode(selectedMode);
-    const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;
+    const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;const effectiveRate=Math.max(.5,Math.min(2,modeRate*playSpeed));
     audio.preservesPitch=true;audio.playbackRate=1;
     const activeEffects=bassLevel>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0||modeRate!==1||playSpeed!==1;
-    if(activeEffects||effectNodesRef.current){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=false;audio.playbackRate=modeRate;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(modeRate,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=1;}}
+    if(activeEffects||effectNodesRef.current){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=false;audio.playbackRate=effectiveRate;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(effectiveRate,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=1;}}
     currentTrackIdRef.current = track.trackId;
     currentTrackUuidRef.current = track.studioTrackId || null;
     listenedSecondsRef.current = 0;
