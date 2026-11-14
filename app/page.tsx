@@ -150,7 +150,7 @@ export default function HomePage() {
   const [appDialog, setAppDialog] = useState<{title:string;message:string;confirmLabel:string;tone:"danger"|"primary";input?:boolean;onConfirm:(value?:string)=>void} | null>(null);
   const [dialogInput, setDialogInput] = useState("");
   const [storageReady, setStorageReady] = useState(false);
-  const [highQualityArtwork, setHighQualityArtwork] = useState(true);
+  const [highQualityArtwork, setHighQualityArtwork] = useState(false);
   const [showExplicitContent, setShowExplicitContent] = useState(true);
   const catalogueRef = useRef<Track[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -542,6 +542,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const audio = new Audio();
+    audio.preload = "none";
     audioRef.current = audio;
     try {
       const preferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}");
