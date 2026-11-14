@@ -575,7 +575,7 @@ export default function HomePage() {
     const selectedMode = keepAudioMode ? audioMode : ((savedPreferences.defaultMode as typeof audioMode) || "normal");
     setAudioMode(selectedMode);
     const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;
-    audio.playbackRate=modeRate*playSpeed*Math.pow(2,pitch/12);
+    audio.preservesPitch=true;audio.playbackRate=modeRate;
     currentTrackIdRef.current = track.trackId;
     currentTrackUuidRef.current = track.studioTrackId || null;
     listenedSecondsRef.current = 0;
@@ -830,7 +830,7 @@ export default function HomePage() {
   const resetAudioMod = () => {
     setBassLevel(0); setBassBoostEnabled(false); setDistortionEnabled(false);
     setReverbEnabled(false); setDelayEnabled(false); setPitch(0); setLowPass(0); setHighPass(0); setPlaySpeed(1);
-    if (audioRef.current) audioRef.current.playbackRate = 1;
+    if (audioRef.current) { audioRef.current.preservesPitch=true; audioRef.current.playbackRate = 1; }
     void updateAudioEffects({bass:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0}).catch(()=>{});
   };
 
@@ -846,14 +846,14 @@ export default function HomePage() {
     const p=presets[preset]; if(!p)return;
     setPlaySpeed(p.speed); setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setPitch(p.pitch);
     setDistortionEnabled(p.distort); setReverbEnabled(p.reverb); setDelayEnabled(p.delay); setLowPass(p.low); setHighPass(p.high);
-    if(audioRef.current)audioRef.current.playbackRate=p.speed*Math.pow(2,p.pitch/12);
+    if(audioRef.current){audioRef.current.preservesPitch=true;audioRef.current.playbackRate=p.speed;}
     void updateAudioEffects({bass:p.bass,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high}).catch(error=>notify(error instanceof Error?error.message:"Could not apply this preset.","error"));
     notify(preset+" preset applied to the current track");
   };
 
   const applyAudioMode = (mode: typeof audioMode) => {
     setAudioMode(mode);
-    if(audioRef.current){const rate=mode==="sped"?1.25:mode==="slowed"?.8:mode==="nightcore"?1.35:mode==="daycore"?.85:1;audioRef.current.playbackRate=rate*playSpeed*Math.pow(2,pitch/12);}
+    if(audioRef.current){const rate=mode==="sped"?1.25:mode==="slowed"?.8:mode==="nightcore"?1.35:mode==="daycore"?.85:1;setPlaySpeed(rate);audioRef.current.preservesPitch=true;audioRef.current.playbackRate=rate;}
     notify(mode === "normal" ? "Original speed" : `${mode === "sped" ? "Sped Up" : mode === "slowed" ? "Slowed" : mode === "nightcore" ? "Nightcore" : "Daycore"} mode enabled`);
   };
 
@@ -1329,11 +1329,11 @@ export default function HomePage() {
                 {["Sped Up","Nightcore","Slowed & Reverb","Slowed","Daycore","Muffled"].map((name,i)=><button key={name} className={"af-preset af-preset-"+i} onClick={()=>chooseAudioPreset(name)}>{name}</button>)}
               </div>
             </div>
-            <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{const v=Number(e.target.value);setPlaySpeed(v);if(audioRef.current)audioRef.current.playbackRate=v*Math.pow(2,pitch/12);}}/><b>{Math.round(playSpeed*100)}%</b></div></div>
+            <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{const v=Number(e.target.value);setPlaySpeed(v);if(audioRef.current){audioRef.current.preservesPitch=true;audioRef.current.playbackRate=v;}}}/><b>{Math.round(playSpeed*100)}%</b></div></div>
             <div className="af-audiomod-toggle"><strong>Bass Boost</strong><input aria-label="Bass Boost" type="checkbox" checked={bassLevel>0} onChange={e=>void setBass(e.target.checked?65:0)}/></div>
             <div className="af-audiomod-control"><strong>Bass level</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
             {([{name:"Distort",value:distortionEnabled,set:setDistortionEnabled},{name:"Reverb",value:reverbEnabled,set:setReverbEnabled},{name:"Delay",value:delayEnabled,set:setDelayEnabled}] as const).map(effect=><div className="af-audiomod-toggle" key={effect.name}><strong>{effect.name}</strong><input type="checkbox" aria-label={effect.name} checked={effect.value} onChange={e=>{const enabled=e.target.checked;effect.set(enabled);void updateAudioEffects(effect.name==="Distort"?{distortion:enabled}:effect.name==="Reverb"?{reverb:enabled}:{delay:enabled}).catch(error=>notify(error instanceof Error?error.message:"Effect unavailable.","warning"));}}/></div>)}
-            <div className="af-audiomod-control"><strong>Pitch</strong><div className="af-range-row"><input type="range" min="-12" max="12" value={pitch} onChange={e=>{const v=Number(e.target.value);setPitch(v);if(audioRef.current)audioRef.current.playbackRate=playSpeed*Math.pow(2,v/12);}}/><b>{pitch}</b></div></div>
+            <div className="af-audiomod-note">Pitch shifting is being upgraded to use proper time-stretch processing. Playback speed is independent and preserves the song’s pitch.</div>
             <div className="af-audiomod-control"><strong>Low Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={lowPass} onChange={e=>{const value=Number(e.target.value);setLowPass(value);void updateAudioEffects({lowPass:value}).catch(error=>notify(error instanceof Error?error.message:"Filter unavailable.","warning"));}}/><b>{lowPass}</b></div></div>
             <div className="af-audiomod-control"><strong>High Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={highPass} onChange={e=>{const value=Number(e.target.value);setHighPass(value);void updateAudioEffects({highPass:value}).catch(error=>notify(error instanceof Error?error.message:"Filter unavailable.","warning"));}}/><b>{highPass}</b></div></div>
             <button className="af-audiomod-share" onClick={()=>{setAudioModOpen(false);notify("Your sound settings are applied to the current track.");}}>Done</button>
