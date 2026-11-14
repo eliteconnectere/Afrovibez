@@ -907,22 +907,11 @@ export default function HomePage() {
     setPlaySpeed(rate);
     const audio=audioRef.current;
     if(!audio) throw new Error("Start a track before changing playback speed.");
-    // Use one pitch-preserving playback-rate stage. Do not initialise or adjust
-    // the SoundTouch worklet for tempo; it remains reserved for pitch/effects.
+    // Match the original stable player behaviour: one native, pitch-preserving
+    // playback-rate control. The SoundTouch worklet is not part of tempo.
+    if(tempoRampRef.current!==null){cancelAnimationFrame(tempoRampRef.current);tempoRampRef.current=null;}
     audio.preservesPitch=true;
-    if(tempoRampRef.current!==null)cancelAnimationFrame(tempoRampRef.current);
-    const startRate=Math.max(.5,Math.min(2,audio.playbackRate||1));
-    const started=performance.now();
-    const duration=260;
-    const step=(now:number)=>{
-      const progress=Math.min(1,(now-started)/duration);
-      const eased=progress*progress*(3-2*progress);
-      const next=startRate+(rate-startRate)*eased;
-      audio.playbackRate=next;
-      if(progress<1)tempoRampRef.current=requestAnimationFrame(step);
-      else {tempoRampRef.current=null;audio.playbackRate=rate;}
-    };
-    tempoRampRef.current=requestAnimationFrame(step);
+    audio.playbackRate=rate;
   };
   const setPitchSemitones = async (value:number) => {
     const semitones=Math.max(-12,Math.min(12,Math.round(value)));
