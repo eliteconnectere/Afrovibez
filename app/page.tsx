@@ -626,6 +626,7 @@ export default function HomePage() {
     if(!offlineBlob&&!track.audioUrl){notify("This song is not saved offline. Connect to the internet to play it.");return;}
     if(!offlineBlob&&!navigator.onLine){notify("This song is not saved offline. Connect to the internet to play or download it.");return;}
     audio.crossOrigin = "anonymous";
+    audio.preload = "none";
     if(offlineBlob){activeObjectUrlRef.current=URL.createObjectURL(offlineBlob);audio.src=activeObjectUrlRef.current;}else{audio.src=track.audioUrl;}
     let savedPreferences: Record<string, unknown> = {};
     try { savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}"); } catch {}
@@ -636,9 +637,12 @@ export default function HomePage() {
     // Mode rate and slider rate are two representations of one setting, not multipliers.
     const effectiveRate=Math.max(.5,Math.min(2,keepAudioMode?playSpeed:modeRate));
     setPlaySpeed(effectiveRate);
-    audio.preservesPitch=true;audio.playbackRate=1;
-    const activeEffects=bassLevel>0||subBassLevel>0||bassPunch>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0||effectiveRate!==1;
-    if(activeEffects||effectNodesRef.current){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=false;audio.playbackRate=effectiveRate;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(effectiveRate,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,bassQ,subBass:subBassLevel,punch:bassPunch,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=effectiveRate;}}
+    audio.preservesPitch=true;
+    audio.playbackRate=effectiveRate;
+    // Keep tempo in the native media element. Running the same rate through
+    // SoundTouch as well caused the two rate stages to compound and jump.
+    const activeEffects=bassLevel>0||subBassLevel>0||bassPunch>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0;
+    if(activeEffects||effectNodesRef.current){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=true;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(1,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,bassQ,subBass:subBassLevel,punch:bassPunch,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=effectiveRate;}}
     currentTrackIdRef.current = track.trackId;
     currentTrackUuidRef.current = track.studioTrackId || null;
     listenedSecondsRef.current = 0;
@@ -902,34 +906,22 @@ export default function HomePage() {
     setPlaySpeed(rate);
     const audio=audioRef.current;
     if(!audio) throw new Error("Start a track before changing playback speed.");
-    try {
-      const context=await ensureAudioGraph();
-      const nodes=effectNodesRef.current;
-      if(!nodes) throw new Error("The audio processor could not be connected.");
-      // The SoundTouch worklet expects the media-element rate and its matching
-      // playbackRate parameter to be equal; it compensates pitch internally.
-      audio.preservesPitch=false;
-      if(tempoRampRef.current!==null)cancelAnimationFrame(tempoRampRef.current);
-      const startRate=Math.max(.5,Math.min(2,audio.playbackRate||1));
-      const started=performance.now();
-      const duration=220;
-      const param=nodes.soundTouch.parameters.get("playbackRate");
-      const step=(now:number)=>{
-        const progress=Math.min(1,(now-started)/duration);
-        const eased=progress*progress*(3-2*progress);
-        const next=startRate+(rate-startRate)*eased;
-        audio.playbackRate=next;
-        param?.setValueAtTime(next,context.currentTime);
-        if(progress<1)tempoRampRef.current=requestAnimationFrame(step);
-        else {tempoRampRef.current=null;audio.playbackRate=rate;param?.setValueAtTime(rate,context.currentTime);}
-      };
-      tempoRampRef.current=requestAnimationFrame(step);
-    } catch(error) {
-      // Keep basic pitch-preserving speed available if AudioWorklet cannot start.
-      audio.preservesPitch=true;
-      audio.playbackRate=rate;
-      throw error;
-    }
+    // Use one pitch-preserving playback-rate stage. Do not initialise or adjust
+    // the SoundTouch worklet for tempo; it remains reserved for pitch/effects.
+    audio.preservesPitch=true;
+    if(tempoRampRef.current!==null)cancelAnimationFrame(tempoRampRef.current);
+    const startRate=Math.max(.5,Math.min(2,audio.playbackRate||1));
+    const started=performance.now();
+    const duration=260;
+    const step=(now:number)=>{
+      const progress=Math.min(1,(now-started)/duration);
+      const eased=progress*progress*(3-2*progress);
+      const next=startRate+(rate-startRate)*eased;
+      audio.playbackRate=next;
+      if(progress<1)tempoRampRef.current=requestAnimationFrame(step);
+      else {tempoRampRef.current=null;audio.playbackRate=rate;}
+    };
+    tempoRampRef.current=requestAnimationFrame(step);
   };
   const setPitchSemitones = async (value:number) => {
     const semitones=Math.max(-12,Math.min(12,Math.round(value)));
