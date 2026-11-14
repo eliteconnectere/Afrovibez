@@ -250,6 +250,7 @@ export default function HomePage() {
   const getOfflineBlob = async (id:number):Promise<Blob|null>=>{try{const db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}};
   const saveOfflineBlob = async (track:Track,blob:Blob,artworkBlob:Blob,artistProfile:any,artistAvatarBlob:Blob|null)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,studioTrackId:track.studioTrackId,blob,artworkBlob,artistAvatarBlob,artistProfile,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,trackViewUrl:track.trackViewUrl,source:track.source,trackExplicitness:track.trackExplicitness,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
   const deleteOfflineBlob = async (id:number):Promise<boolean>=>{try{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").delete(id);tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();setOfflineDownloads(prev=>{const next=new Set(prev);next.delete(id);return next;});setOfflineTracks(prev=>prev.filter(track=>track.trackId!==id));return true;}catch{return false;}};
+  const updateOfflineTrackVisuals = async(id:number,artworkBlob?:Blob|null,artistAvatarBlob?:Blob|null)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");const store=tx.objectStore("tracks");const req=store.get(id);req.onsuccess=()=>{if(req.result){if(artworkBlob)req.result.artworkBlob=artworkBlob;if(artistAvatarBlob)req.result.artistAvatarBlob=artistAvatarBlob;store.put(req.result);}};tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
 
   // Every discovery surface is built from real, approved AfroVibe Studio releases.
   // No third-party catalogue, fabricated tracks, or subscription-gated catalogue.
@@ -335,6 +336,34 @@ export default function HomePage() {
   useEffect(() => {
     if("serviceWorker" in navigator){void navigator.serviceWorker.register("/sw.js").catch(error=>console.warn("AfroVibez offline app shell registration failed:",error));}
   }, []);
+  useEffect(() => {
+    if(!storageReady||!navigator.onLine||!offlineTracks.length||!studioTracks.length)return;
+    let cancelled=false;
+    void (async()=>{
+      for(const savedTrack of offlineTracks){
+        if(cancelled)break;
+        const sourceTrack=studioTracks.find(track=>track.trackId===savedTrack.trackId);
+        if(!sourceTrack)continue;
+        const rowDb=await openOfflineDb();
+        const row=await new Promise<any>((resolve,reject)=>{const req=rowDb.transaction("tracks","readonly").objectStore("tracks").get(savedTrack.trackId);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+        rowDb.close();
+        if(!row)continue;
+        let artworkBlob:Blob|null=row.artworkBlob instanceof Blob?row.artworkBlob:null;
+        if(!artworkBlob&&sourceTrack.artworkUrl100){
+          try{const response=await fetch(sourceTrack.artworkUrl100,{mode:"cors",cache:"no-store"});if(response.ok){const candidate=await response.blob();if(candidate.type.startsWith("image/")&&candidate.size)artworkBlob=candidate;}}catch(error){console.warn("Existing download artwork repair failed:",savedTrack.trackId,error);}
+        }
+        let avatarBlob:Blob|null=row.artistAvatarBlob instanceof Blob?row.artistAvatarBlob:null;
+        const profile=sourceTrack.artistId?artistProfiles[sourceTrack.artistId]:null;
+        if(!avatarBlob&&profile?.avatarUrl){
+          try{const response=await fetch(profile.avatarUrl,{mode:"cors",cache:"no-store"});if(response.ok){const candidate=await response.blob();if(candidate.type.startsWith("image/")&&candidate.size)avatarBlob=candidate;}}catch(error){console.warn("Existing download artist image repair failed:",sourceTrack.artistId,error);}
+        }
+        if(artworkBlob||avatarBlob)await updateOfflineTrackVisuals(savedTrack.trackId,artworkBlob,avatarBlob);
+        if(artworkBlob&&!savedTrack.artworkUrl100){setOfflineTracks(current=>current.map(track=>track.trackId===savedTrack.trackId?{...track,artworkUrl100:URL.createObjectURL(artworkBlob!)}:track));}
+        if(sourceTrack.artistId&&profile&&avatarBlob){void cacheOfflineAsset(`artist-profile:${sourceTrack.artistId}`,avatarBlob,{...profile,avatarUrl:""});setArtistProfiles(current=>({...current,[sourceTrack.artistId!]:{...profile,avatarUrl:URL.createObjectURL(avatarBlob!)}}));}
+      }
+    })().catch(error=>console.warn("Offline visual repair could not finish:",error));
+    return()=>{cancelled=true;};
+  },[storageReady,offlineTracks,studioTracks,artistProfiles]);
 
   useEffect(() => {
     try {
