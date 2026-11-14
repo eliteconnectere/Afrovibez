@@ -801,3 +801,20 @@ html[data-theme="dark"] .settings-reference-group h2{color:#ff5368}
 .af-audiomod-toggle input:checked:before{transform:translateX(24px)}
 .af-audiomod-share{display:block;margin:25px 0 10px auto;border:0;border-radius:40px;padding:16px 34px;background:#ffa500;color:#111;font-size:17px;font-weight:800;cursor:pointer}
 @media(max-width:520px){.af-audiomod-studio{padding-left:20px;padding-right:20px}.af-audiomod-header{height:68px}.af-audiomod-header>strong{font-size:22px}.af-preset-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.af-preset{height:92px;font-size:13px}.af-audiomod-control,.af-audiomod-toggle{padding:23px 0}}
+
+/* Dedicated Bass Studio */
+.af-bass-studio{width:min(100%,560px);max-height:min(88dvh,820px);overflow:auto;background:#fff;color:#13254a;border:1px solid rgba(20,75,160,.14);border-radius:26px;padding:22px;box-shadow:0 24px 80px rgba(8,32,80,.28)}
+.af-bass-studio>header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-bottom:18px;border-bottom:1px solid #e6edf8}
+.af-bass-studio>header strong{font-size:21px;font-weight:800}
+.af-bass-studio>header button{display:inline-flex;align-items:center;justify-content:center;min-width:42px;min-height:42px;border:0;border-radius:13px;background:#edf4ff;color:#1454ad;font-weight:750}
+.af-bass-studio>p{color:#65748e;font-size:14px;line-height:1.5;margin:16px 0 22px}
+.af-bass-enable{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border-radius:18px;background:#f1f6ff;margin-bottom:18px}
+.af-bass-enable div{display:grid;gap:5px}
+.af-bass-enable strong{font-size:16px}
+.af-bass-enable small{color:#66758d;font-size:12px}
+.af-bass-enable input{width:24px;height:24px;accent-color:#1454ad}
+.af-bass-studio .af-audiomod-control{padding:16px 0;border-bottom:1px solid #e8edf5}
+.af-bass-studio .af-range-row{display:flex;align-items:center;gap:14px;margin-top:12px}
+.af-bass-studio .af-range-row input{flex:1;accent-color:#1454ad}
+.af-bass-studio .af-range-row b{min-width:68px;text-align:right;color:#1454ad;font-variant-numeric:tabular-nums}
+.af-bass-studio .af-audiomod-share{width:100%;margin-top:20px;min-height:48px;border:0;border-radius:15px;background:#1454ad;color:white;font-weight:800}
