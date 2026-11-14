@@ -973,16 +973,19 @@ export default function HomePage() {
     setBassStudioOpen(true);
   };
   const resetAudioMod = () => {
+    if(tempoRampRef.current!==null){cancelAnimationFrame(tempoRampRef.current);tempoRampRef.current=null;}
+    setAudioMode("normal");
+    setBassFrequency(90);setBassQ(.7);
     setBassLevel(0); setBassBoostEnabled(false); setSubBassLevel(0); setBassPunch(0); setDistortionEnabled(false);
     setReverbEnabled(false); setDelayEnabled(false); setPitch(0); setLowPass(0); setHighPass(0); setPlaySpeed(1);
     const context=audioContextRef.current;
     const nodes=effectNodesRef.current;
-    if(audioRef.current){audioRef.current.playbackRate=1;audioRef.current.preservesPitch=false;}
+    if(audioRef.current){audioRef.current.playbackRate=1;audioRef.current.preservesPitch=Boolean(nodes);}
     if(context&&nodes){
       const now=context.currentTime;
       nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(1,now);
       nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(0,now);
-      void updateAudioEffects({bass:0,subBass:0,punch:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0});
+      void updateAudioEffects({bass:0,bassFrequency:90,bassQ:.7,subBass:0,punch:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0});
     }
   };
   const chooseAudioPreset = (preset:string) => {
@@ -1000,15 +1003,11 @@ export default function HomePage() {
     setDistortionEnabled(p.distort); setReverbEnabled(p.reverb); setDelayEnabled(p.delay); setLowPass(p.low); setHighPass(p.high);
     void (async()=>{
       try{
-        const context=await ensureAudioGraph();
+        await setTempo(p.speed);
+        const context=audioContextRef.current!;
         const nodes=effectNodesRef.current!;
-        const audio=audioRef.current!;
-        audio.preservesPitch=false;
-        audio.playbackRate=p.speed;
-        nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(p.speed,context.currentTime);
         nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(p.pitch,context.currentTime);
         await updateAudioEffects({bass:p.bass,subBass:0,punch:0,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high});
-        setPlaySpeed(p.speed);
         notify(preset+" preset applied.");
       }catch(error){notify(error instanceof Error?error.message:"Could not apply this preset.","error");}
     })();
