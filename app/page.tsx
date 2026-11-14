@@ -120,6 +120,8 @@ export default function HomePage() {
   const [bassBoostEnabled, setBassBoostEnabled] = useState(false);
   const [audioModOpen, setAudioModOpen] = useState(false);
   const [bassLevel, setBassLevel] = useState(0);
+  const [bassStudioOpen, setBassStudioOpen] = useState(false);
+  const [bassFrequency, setBassFrequency] = useState(90);
   const [distortionEnabled, setDistortionEnabled] = useState(false);
   const [reverbEnabled, setReverbEnabled] = useState(false);
   const [delayEnabled, setDelayEnabled] = useState(false);
@@ -575,7 +577,9 @@ export default function HomePage() {
     const selectedMode = keepAudioMode ? audioMode : ((savedPreferences.defaultMode as typeof audioMode) || "normal");
     setAudioMode(selectedMode);
     const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;
-    audio.preservesPitch=true;audio.playbackRate=modeRate;
+    audio.preservesPitch=true;audio.playbackRate=1;
+    const activeEffects=bassLevel>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0||modeRate!==1||playSpeed!==1;
+    if(activeEffects){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=false;audio.playbackRate=modeRate;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(modeRate,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=1;}}
     currentTrackIdRef.current = track.trackId;
     currentTrackUuidRef.current = track.studioTrackId || null;
     listenedSecondsRef.current = 0;
@@ -773,87 +777,149 @@ export default function HomePage() {
     setAudioModOpen(true);
   };
 
-  const effectNodesRef = useRef<{source:MediaElementAudioSourceNode; bass:BiquadFilterNode; low:BiquadFilterNode; high:BiquadFilterNode; distortion:WaveShaperNode; delay:DelayNode; delayWet:GainNode; dry:GainNode; convolver:ConvolverNode; reverbWet:GainNode} | null>(null);
+  const effectNodesRef = useRef<{source:MediaElementAudioSourceNode; soundTouch:AudioWorkletNode; bass:BiquadFilterNode; low:BiquadFilterNode; high:BiquadFilterNode; distortion:WaveShaperNode; delay:DelayNode; delayWet:GainNode; delayFeedback:GainNode; dry:GainNode; convolver:ConvolverNode; reverbWet:GainNode; compressor:DynamicsCompressorNode} | null>(null);
   const ensureAudioGraph = async () => {
     const audio = audioRef.current;
     if (!audio) throw new Error("Start a track before changing sound effects.");
     let context = audioContextRef.current;
     if (!context) {
-      const AudioContextClass = window.AudioContext;
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) throw new Error("Audio effects are not supported in this browser.");
       context = new AudioContextClass();
+      const { SoundTouchNode } = await import("@soundtouchjs/audio-worklet");
+      const processorUrl = new URL("@soundtouchjs/audio-worklet/processor", import.meta.url);
+      await SoundTouchNode.register(context, processorUrl);
       const source = context.createMediaElementSource(audio);
-      const bass = context.createBiquadFilter(); bass.type="lowshelf"; bass.frequency.value=120;
+      const soundTouch = new SoundTouchNode({ context });
+      const bass = context.createBiquadFilter(); bass.type="lowshelf"; bass.frequency.value=bassFrequency; bass.Q.value=0.7;
       const distortion = context.createWaveShaper(); distortion.oversample="4x";
       const high = context.createBiquadFilter(); high.type="highpass"; high.frequency.value=20;
       const low = context.createBiquadFilter(); low.type="lowpass"; low.frequency.value=20000;
       const delay = context.createDelay(1.5); delay.delayTime.value=.28;
       const delayWet = context.createGain(); delayWet.gain.value=0;
+      const delayFeedback = context.createGain(); delayFeedback.gain.value=.18;
       const dry = context.createGain(); dry.gain.value=1;
       const convolver = context.createConvolver();
-      const impulseLength=Math.floor(context.sampleRate*1.8); const impulse=context.createBuffer(2,impulseLength,context.sampleRate);
-      for(let channel=0;channel<2;channel++){const data=impulse.getChannelData(channel);for(let i=0;i<impulseLength;i++)data[i]=(Math.random()*2-1)*Math.pow(1-i/impulseLength,2.4);}
+      const impulseLength=Math.floor(context.sampleRate*2.2);
+      const impulse=context.createBuffer(2,impulseLength,context.sampleRate);
+      for(let channel=0;channel<2;channel++){
+        const data=impulse.getChannelData(channel);
+        for(let i=0;i<impulseLength;i++) data[i]=(Math.random()*2-1)*Math.pow(1-i/impulseLength,2.8);
+      }
       convolver.buffer=impulse;
       const reverbWet=context.createGain(); reverbWet.gain.value=0;
-      source.connect(bass); bass.connect(distortion); distortion.connect(high); high.connect(low);
-      low.connect(dry); dry.connect(context.destination);
-      low.connect(delay); delay.connect(delayWet); delayWet.connect(context.destination);
-      low.connect(convolver); convolver.connect(reverbWet); reverbWet.connect(context.destination);
-      audioContextRef.current=context; bassFilterRef.current=bass;
-      effectNodesRef.current={source,bass,low,high,distortion,delay,delayWet,dry,convolver,reverbWet};
+      const compressor=context.createDynamicsCompressor();
+      compressor.threshold.value=-12; compressor.knee.value=18; compressor.ratio.value=3.5; compressor.attack.value=.004; compressor.release.value=.18;
+      source.connect(soundTouch);
+      soundTouch.connect(bass);
+      bass.connect(distortion);
+      distortion.connect(high);
+      high.connect(low);
+      low.connect(dry); dry.connect(compressor);
+      low.connect(delay); delay.connect(delayWet); delayWet.connect(compressor);
+      delay.connect(delayFeedback); delayFeedback.connect(delay);
+      low.connect(convolver); convolver.connect(reverbWet); reverbWet.connect(compressor);
+      compressor.connect(context.destination);
+      audioContextRef.current=context;
+      bassFilterRef.current=bass;
+      effectNodesRef.current={source,soundTouch,bass,low,high,distortion,delay,delayWet,delayFeedback,dry,convolver,reverbWet,compressor};
     }
     await context.resume();
     return context;
   };
-  const updateAudioEffects = async (next:{bass?:number;distortion?:boolean;reverb?:boolean;delay?:boolean;lowPass?:number;highPass?:number}) => {
-    const context=await ensureAudioGraph(); const nodes=effectNodesRef.current!; const now=context.currentTime;
-    if(next.bass!==undefined)nodes.bass.gain.setTargetAtTime(next.bass*.18,now,.04);
-    if(next.distortion!==undefined){const amount=next.distortion?34:0;const curve=new Float32Array(44100);for(let i=0;i<curve.length;i++){const x=i*2/curve.length-1;curve[i]=next.distortion?((3+amount)*x*20*Math.PI/180)/(Math.PI+amount*Math.abs(x)):x;}nodes.distortion.curve=next.distortion?curve:null;}
-    if(next.reverb!==undefined)nodes.reverbWet.gain.setTargetAtTime(next.reverb?.22:0,now,.08);
-    if(next.delay!==undefined)nodes.delayWet.gain.setTargetAtTime(next.delay?.2:0,now,.08);
-    if(next.lowPass!==undefined)nodes.low.frequency.setTargetAtTime(next.lowPass?Math.max(250,20000-next.lowPass*185):20000,now,.05);
-    if(next.highPass!==undefined)nodes.high.frequency.setTargetAtTime(next.highPass?Math.min(8000,20+next.highPass*79.8):20,now,.05);
+  const setTempo = async (value:number) => {
+    const rate=Math.max(.5,Math.min(2,Number(value)||1));
+    setPlaySpeed(rate);
+    const context=await ensureAudioGraph();
+    const audio=audioRef.current;
+    const nodes=effectNodesRef.current;
+    if(!audio||!nodes) throw new Error("The audio processor could not be connected.");
+    audio.preservesPitch=false;
+    audio.playbackRate=rate;
+    nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(rate,context.currentTime);
   };
-
+  const setPitchSemitones = async (value:number) => {
+    const semitones=Math.max(-12,Math.min(12,Math.round(value)));
+    setPitch(semitones);
+    const context=await ensureAudioGraph();
+    const param=effectNodesRef.current?.soundTouch.parameters.get("pitchSemitones");
+    if(!param) throw new Error("Pitch processing is unavailable.");
+    param.setValueAtTime(semitones,context.currentTime);
+  };
+  const updateAudioEffects = async (next:{bass?:number;bassFrequency?:number;distortion?:boolean;reverb?:boolean;delay?:boolean;lowPass?:number;highPass?:number}) => {
+    const context=await ensureAudioGraph();
+    const nodes=effectNodesRef.current!;
+    const now=context.currentTime;
+    if(next.bass!==undefined) nodes.bass.gain.setTargetAtTime(Math.max(0,Math.min(100,next.bass))*.12,now,.06);
+    if(next.bassFrequency!==undefined) nodes.bass.frequency.setTargetAtTime(Math.max(40,Math.min(250,next.bassFrequency)),now,.06);
+    if(next.distortion!==undefined){
+      const amount=next.distortion?28:0;
+      const curve=new Float32Array(44100);
+      for(let i=0;i<curve.length;i++){
+        const x=i*2/(curve.length-1)-1;
+        curve[i]=next.distortion?((1+amount)*x)/(1+amount*Math.abs(x)):x;
+      }
+      nodes.distortion.curve=next.distortion?curve:null;
+    }
+    if(next.reverb!==undefined) nodes.reverbWet.gain.setTargetAtTime(next.reverb?.18:0,now,.12);
+    if(next.delay!==undefined) nodes.delayWet.gain.setTargetAtTime(next.delay?.16:0,now,.12);
+    if(next.lowPass!==undefined) nodes.low.frequency.setTargetAtTime(next.lowPass?Math.max(350,20000-next.lowPass*190):20000,now,.08);
+    if(next.highPass!==undefined) nodes.high.frequency.setTargetAtTime(next.highPass?Math.min(6000,20+next.highPass*59.8):20,now,.08);
+  };
   const setBass = async (value:number) => {
-    setBassLevel(value); setBassBoostEnabled(value>0);
-    try{await updateAudioEffects({bass:value});}
+    setBassLevel(value);
+    setBassBoostEnabled(value>0);
+    try{await updateAudioEffects({bass:value,bassFrequency});}
     catch(error){notify(error instanceof Error?error.message:"Bass control is unavailable for this playback.","warning","Audio effect unavailable");}
   };
-
   const toggleBassBoost = () => {
     setPlayerToolsOpen(false);
-    setAudioModOpen(true);
-    if (bassLevel === 0) void setBass(65);
+    setBassStudioOpen(true);
   };
-
   const resetAudioMod = () => {
     setBassLevel(0); setBassBoostEnabled(false); setDistortionEnabled(false);
     setReverbEnabled(false); setDelayEnabled(false); setPitch(0); setLowPass(0); setHighPass(0); setPlaySpeed(1);
-    if (audioRef.current) { audioRef.current.preservesPitch=true; audioRef.current.playbackRate = 1; }
-    void updateAudioEffects({bass:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0}).catch(()=>{});
+    const context=audioContextRef.current;
+    const nodes=effectNodesRef.current;
+    if(audioRef.current){audioRef.current.playbackRate=1;audioRef.current.preservesPitch=false;}
+    if(context&&nodes){
+      const now=context.currentTime;
+      nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(1,now);
+      nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(0,now);
+      void updateAudioEffects({bass:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0});
+    }
   };
-
   const chooseAudioPreset = (preset:string) => {
     const presets:Record<string,{speed:number;bass:number;pitch:number;distort:boolean;reverb:boolean;delay:boolean;low:number;high:number}> = {
-      "Sped Up":{speed:1.25,bass:8,pitch:2,distort:false,reverb:false,delay:false,low:0,high:0},
-      "Nightcore":{speed:1.35,bass:12,pitch:4,distort:false,reverb:true,delay:false,low:0,high:0},
-      "Slowed & Reverb":{speed:.8,bass:18,pitch:-2,distort:false,reverb:true,delay:true,low:0,high:0},
-      "Slowed":{speed:.8,bass:10,pitch:-2,distort:false,reverb:false,delay:false,low:0,high:0},
-      "Daycore":{speed:.85,bass:14,pitch:-3,distort:false,reverb:true,delay:false,low:0,high:0},
-      "Muffled":{speed:1,bass:4,pitch:0,distort:false,reverb:false,delay:false,low:65,high:0}
+      "Sped Up":{speed:1.25,bass:0,pitch:0,distort:false,reverb:false,delay:false,low:0,high:0},
+      "Nightcore":{speed:1.35,bass:0,pitch:2,distort:false,reverb:false,delay:false,low:0,high:0},
+      "Slowed & Reverb":{speed:.8,bass:10,pitch:-2,distort:false,reverb:true,delay:true,low:0,high:0},
+      "Slowed":{speed:.8,bass:0,pitch:-2,distort:false,reverb:false,delay:false,low:0,high:0},
+      "Daycore":{speed:.85,bass:0,pitch:-3,distort:false,reverb:true,delay:false,low:0,high:0},
+      "Muffled":{speed:1,bass:0,pitch:0,distort:false,reverb:false,delay:false,low:65,high:0}
     };
     const p=presets[preset]; if(!p)return;
-    setPlaySpeed(p.speed); setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setPitch(p.pitch);
+    setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setPitch(p.pitch);
     setDistortionEnabled(p.distort); setReverbEnabled(p.reverb); setDelayEnabled(p.delay); setLowPass(p.low); setHighPass(p.high);
-    if(audioRef.current){audioRef.current.preservesPitch=true;audioRef.current.playbackRate=p.speed;}
-    void updateAudioEffects({bass:p.bass,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high}).catch(error=>notify(error instanceof Error?error.message:"Could not apply this preset.","error"));
-    notify(preset+" preset applied to the current track");
+    void (async()=>{
+      try{
+        const context=await ensureAudioGraph();
+        const nodes=effectNodesRef.current!;
+        const audio=audioRef.current!;
+        audio.preservesPitch=false;
+        audio.playbackRate=p.speed;
+        nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(p.speed,context.currentTime);
+        nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(p.pitch,context.currentTime);
+        await updateAudioEffects({bass:p.bass,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high});
+        setPlaySpeed(p.speed);
+        notify(preset+" preset applied.");
+      }catch(error){notify(error instanceof Error?error.message:"Could not apply this preset.","error");}
+    })();
   };
-
   const applyAudioMode = (mode: typeof audioMode) => {
     setAudioMode(mode);
-    if(audioRef.current){const rate=mode==="sped"?1.25:mode==="slowed"?.8:mode==="nightcore"?1.35:mode==="daycore"?.85:1;setPlaySpeed(rate);audioRef.current.preservesPitch=true;audioRef.current.playbackRate=rate;}
+    const rate=mode==="sped"?1.25:mode==="slowed"?.8:mode==="nightcore"?1.35:mode==="daycore"?.85:1;
+    void setTempo(rate).catch(error=>notify(error instanceof Error?error.message:"Tempo processing is unavailable.","error"));
     notify(mode === "normal" ? "Original speed" : `${mode === "sped" ? "Sped Up" : mode === "slowed" ? "Slowed" : mode === "nightcore" ? "Nightcore" : "Daycore"} mode enabled`);
   };
 
@@ -1315,6 +1381,18 @@ export default function HomePage() {
           </section>
         </div>
       )}
+      {bassStudioOpen && current && (
+        <div className="af-tools-backdrop af-audiomod-backdrop" role="presentation" onClick={()=>setBassStudioOpen(false)}>
+          <section className="af-bass-studio" role="dialog" aria-modal="true" aria-label="Bass Boost studio" onClick={e=>e.stopPropagation()}>
+            <header><button onClick={()=>setBassStudioOpen(false)} aria-label="Close bass studio"><ChevronLeft/></button><strong>Bass Studio</strong><button onClick={()=>void setBass(0)}>Reset</button></header>
+            <p>Shape the low end of this track. Changes apply live while it plays.</p>
+            <div className="af-bass-enable"><div><strong>Bass Boost</strong><small>Enhance kick drums and low frequencies</small></div><input type="checkbox" checked={bassBoostEnabled} onChange={e=>void setBass(e.target.checked?55:0)}/></div>
+            <div className="af-audiomod-control"><strong>Bass intensity</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
+            <div className="af-audiomod-control"><strong>Bass frequency</strong><div className="af-range-row"><input type="range" min="40" max="250" step="5" value={bassFrequency} onChange={e=>{const value=Number(e.target.value);setBassFrequency(value);void updateAudioEffects({bass:bassLevel,bassFrequency:value}).catch(error=>notify(error instanceof Error?error.message:"Frequency control unavailable.","error"));}}/><b>{bassFrequency} Hz</b></div></div>
+            <button className="af-audiomod-share" onClick={()=>setBassStudioOpen(false)}>Done</button>
+          </section>
+        </div>
+      )}
       {audioModOpen && current && (
         <div className="af-tools-backdrop af-audiomod-backdrop" role="presentation" onClick={()=>setAudioModOpen(false)}>
           <section className="af-audiomod-studio" role="dialog" aria-modal="true" aria-label="Audiomod sound studio" onClick={e=>e.stopPropagation()}>
@@ -1329,11 +1407,11 @@ export default function HomePage() {
                 {["Sped Up","Nightcore","Slowed & Reverb","Slowed","Daycore","Muffled"].map((name,i)=><button key={name} className={"af-preset af-preset-"+i} onClick={()=>chooseAudioPreset(name)}>{name}</button>)}
               </div>
             </div>
-            <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{const v=Number(e.target.value);setPlaySpeed(v);if(audioRef.current){audioRef.current.preservesPitch=true;audioRef.current.playbackRate=v;}}}/><b>{Math.round(playSpeed*100)}%</b></div></div>
+            <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{void setTempo(Number(e.target.value)).catch(error=>notify(error instanceof Error?error.message:"Tempo processing is unavailable.","error"));}}/><b>{Math.round(playSpeed*100)}%</b></div></div>
             <div className="af-audiomod-toggle"><strong>Bass Boost</strong><input aria-label="Bass Boost" type="checkbox" checked={bassLevel>0} onChange={e=>void setBass(e.target.checked?65:0)}/></div>
             <div className="af-audiomod-control"><strong>Bass level</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
             {([{name:"Distort",value:distortionEnabled,set:setDistortionEnabled},{name:"Reverb",value:reverbEnabled,set:setReverbEnabled},{name:"Delay",value:delayEnabled,set:setDelayEnabled}] as const).map(effect=><div className="af-audiomod-toggle" key={effect.name}><strong>{effect.name}</strong><input type="checkbox" aria-label={effect.name} checked={effect.value} onChange={e=>{const enabled=e.target.checked;effect.set(enabled);void updateAudioEffects(effect.name==="Distort"?{distortion:enabled}:effect.name==="Reverb"?{reverb:enabled}:{delay:enabled}).catch(error=>notify(error instanceof Error?error.message:"Effect unavailable.","warning"));}}/></div>)}
-            <div className="af-audiomod-note">Pitch shifting is being upgraded to use proper time-stretch processing. Playback speed is independent and preserves the song’s pitch.</div>
+            <div className="af-audiomod-control"><strong>Pitch</strong><div className="af-range-row"><input type="range" min="-12" max="12" step="1" value={pitch} onChange={e=>{void setPitchSemitones(Number(e.target.value)).catch(error=>notify(error instanceof Error?error.message:"Pitch processing is unavailable.","error"));}}/><b>{pitch>0?"+":""}{pitch} st</b></div></div>
             <div className="af-audiomod-control"><strong>Low Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={lowPass} onChange={e=>{const value=Number(e.target.value);setLowPass(value);void updateAudioEffects({lowPass:value}).catch(error=>notify(error instanceof Error?error.message:"Filter unavailable.","warning"));}}/><b>{lowPass}</b></div></div>
             <div className="af-audiomod-control"><strong>High Pass Filter</strong><div className="af-range-row"><input type="range" min="0" max="100" value={highPass} onChange={e=>{const value=Number(e.target.value);setHighPass(value);void updateAudioEffects({highPass:value}).catch(error=>notify(error instanceof Error?error.message:"Filter unavailable.","warning"));}}/><b>{highPass}</b></div></div>
             <button className="af-audiomod-share" onClick={()=>{setAudioModOpen(false);notify("Your sound settings are applied to the current track.");}}>Done</button>
