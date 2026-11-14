@@ -132,6 +132,7 @@ export default function HomePage() {
   const [playSpeed, setPlaySpeed] = useState(1);
 
   const audioContextRef = useRef<AudioContext | null>(null);
+  const audioGraphInitRef = useRef<Promise<AudioContext> | null>(null);
   const playRequestRef = useRef(0);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
@@ -779,10 +780,13 @@ export default function HomePage() {
 
   const effectNodesRef = useRef<{source:MediaElementAudioSourceNode; soundTouch:AudioWorkletNode; bass:BiquadFilterNode; low:BiquadFilterNode; high:BiquadFilterNode; distortion:WaveShaperNode; delay:DelayNode; delayWet:GainNode; delayFeedback:GainNode; dry:GainNode; convolver:ConvolverNode; reverbWet:GainNode; compressor:DynamicsCompressorNode} | null>(null);
   const ensureAudioGraph = async () => {
-    const audio = audioRef.current;
-    if (!audio) throw new Error("Start a track before changing sound effects.");
-    let context = audioContextRef.current;
-    if (!context) {
+    if (effectNodesRef.current && audioContextRef.current) { await audioContextRef.current.resume(); return audioContextRef.current; }
+    if (audioGraphInitRef.current) return audioGraphInitRef.current;
+    const init = (async () => {
+      const audio = audioRef.current;
+      if (!audio) throw new Error("Start a track before changing sound effects.");
+      let context = audioContextRef.current;
+      if (!context) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) throw new Error("Audio effects are not supported in this browser.");
       context = new AudioContextClass();
@@ -823,9 +827,13 @@ export default function HomePage() {
       audioContextRef.current=context;
       bassFilterRef.current=bass;
       effectNodesRef.current={source,soundTouch,bass,low,high,distortion,delay,delayWet,delayFeedback,dry,convolver,reverbWet,compressor};
-    }
-    await context.resume();
-    return context;
+      }
+      await context.resume();
+      return context;
+    })();
+    audioGraphInitRef.current=init;
+    try { return await init; }
+    catch(error) { audioGraphInitRef.current=null; audioContextRef.current=null; effectNodesRef.current=null; throw error; }
   };
   const setTempo = async (value:number) => {
     const rate=Math.max(.5,Math.min(2,Number(value)||1));
