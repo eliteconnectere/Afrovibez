@@ -122,6 +122,9 @@ export default function HomePage() {
   const [bassLevel, setBassLevel] = useState(0);
   const [bassStudioOpen, setBassStudioOpen] = useState(false);
   const [bassFrequency, setBassFrequency] = useState(90);
+  const [bassQ, setBassQ] = useState(0.7);
+  const [subBassLevel, setSubBassLevel] = useState(0);
+  const [bassPunch, setBassPunch] = useState(0);
   const [distortionEnabled, setDistortionEnabled] = useState(false);
   const [reverbEnabled, setReverbEnabled] = useState(false);
   const [delayEnabled, setDelayEnabled] = useState(false);
@@ -133,6 +136,7 @@ export default function HomePage() {
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioGraphInitRef = useRef<Promise<AudioContext> | null>(null);
+  const tempoRampRef = useRef<number | null>(null);
   const playRequestRef = useRef(0);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
@@ -624,10 +628,13 @@ export default function HomePage() {
     audio.volume = Math.max(0, Math.min(100, Number(savedPreferences.volume ?? 85))) / 100;
     const selectedMode = keepAudioMode ? audioMode : ((savedPreferences.defaultMode as typeof audioMode) || "normal");
     setAudioMode(selectedMode);
-    const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;const effectiveRate=Math.max(.5,Math.min(2,modeRate*playSpeed));
+    const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;
+    // Mode rate and slider rate are two representations of one setting, not multipliers.
+    const effectiveRate=Math.max(.5,Math.min(2,keepAudioMode?playSpeed:modeRate));
+    setPlaySpeed(effectiveRate);
     audio.preservesPitch=true;audio.playbackRate=1;
-    const activeEffects=bassLevel>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0||modeRate!==1||playSpeed!==1;
-    if(activeEffects||effectNodesRef.current){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=false;audio.playbackRate=effectiveRate;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(effectiveRate,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=1;}}
+    const activeEffects=bassLevel>0||subBassLevel>0||bassPunch>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0||effectiveRate!==1;
+    if(activeEffects||effectNodesRef.current){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=false;audio.playbackRate=effectiveRate;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(effectiveRate,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,bassQ,subBass:subBassLevel,punch:bassPunch,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=effectiveRate;}}
     currentTrackIdRef.current = track.trackId;
     currentTrackUuidRef.current = track.studioTrackId || null;
     listenedSecondsRef.current = 0;
@@ -825,7 +832,7 @@ export default function HomePage() {
     setAudioModOpen(true);
   };
 
-  const effectNodesRef = useRef<{source:MediaElementAudioSourceNode; soundTouch:AudioWorkletNode; bass:BiquadFilterNode; low:BiquadFilterNode; high:BiquadFilterNode; distortion:WaveShaperNode; delay:DelayNode; delayWet:GainNode; delayFeedback:GainNode; dry:GainNode; convolver:ConvolverNode; reverbWet:GainNode; compressor:DynamicsCompressorNode} | null>(null);
+  const effectNodesRef = useRef<{source:MediaElementAudioSourceNode; soundTouch:AudioWorkletNode; bass:BiquadFilterNode; subBass:BiquadFilterNode; punch:BiquadFilterNode; low:BiquadFilterNode; high:BiquadFilterNode; distortion:WaveShaperNode; delay:DelayNode; delayWet:GainNode; delayFeedback:GainNode; dry:GainNode; convolver:ConvolverNode; reverbWet:GainNode; compressor:DynamicsCompressorNode} | null>(null);
   const ensureAudioGraph = async () => {
     if (effectNodesRef.current && audioContextRef.current) { await audioContextRef.current.resume(); return audioContextRef.current; }
     if (audioGraphInitRef.current) return audioGraphInitRef.current;
@@ -842,7 +849,9 @@ export default function HomePage() {
       await SoundTouchNode.register(context, processorUrl);
       const source = context.createMediaElementSource(audio);
       const soundTouch = new SoundTouchNode({ context });
-      const bass = context.createBiquadFilter(); bass.type="lowshelf"; bass.frequency.value=bassFrequency; bass.Q.value=0.7;
+      const subBass = context.createBiquadFilter(); subBass.type="lowshelf"; subBass.frequency.value=55; subBass.Q.value=0.8;
+      const bass = context.createBiquadFilter(); bass.type="lowshelf"; bass.frequency.value=bassFrequency; bass.Q.value=bassQ;
+      const punch = context.createBiquadFilter(); punch.type="peaking"; punch.frequency.value=115; punch.Q.value=1.05; punch.gain.value=0;
       const distortion = context.createWaveShaper(); distortion.oversample="4x";
       const high = context.createBiquadFilter(); high.type="highpass"; high.frequency.value=20;
       const low = context.createBiquadFilter(); low.type="lowpass"; low.frequency.value=20000;
@@ -862,8 +871,10 @@ export default function HomePage() {
       const compressor=context.createDynamicsCompressor();
       compressor.threshold.value=-12; compressor.knee.value=18; compressor.ratio.value=3.5; compressor.attack.value=.004; compressor.release.value=.18;
       source.connect(soundTouch);
-      soundTouch.connect(bass);
-      bass.connect(distortion);
+      soundTouch.connect(subBass);
+      subBass.connect(bass);
+      bass.connect(punch);
+      punch.connect(distortion);
       distortion.connect(high);
       high.connect(low);
       low.connect(dry); dry.connect(compressor);
@@ -873,7 +884,7 @@ export default function HomePage() {
       compressor.connect(context.destination);
       audioContextRef.current=context;
       bassFilterRef.current=bass;
-      effectNodesRef.current={source,soundTouch,bass,low,high,distortion,delay,delayWet,delayFeedback,dry,convolver,reverbWet,compressor};
+      effectNodesRef.current={source,soundTouch,bass,subBass,punch,low,high,distortion,delay,delayWet,delayFeedback,dry,convolver,reverbWet,compressor};
       }
       await context.resume();
       return context;
@@ -885,13 +896,38 @@ export default function HomePage() {
   const setTempo = async (value:number) => {
     const rate=Math.max(.5,Math.min(2,Number(value)||1));
     setPlaySpeed(rate);
-    const context=await ensureAudioGraph();
     const audio=audioRef.current;
-    const nodes=effectNodesRef.current;
-    if(!audio||!nodes) throw new Error("The audio processor could not be connected.");
-    audio.preservesPitch=false;
-    audio.playbackRate=rate;
-    nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(rate,context.currentTime);
+    if(!audio) throw new Error("Start a track before changing playback speed.");
+    try {
+      const context=await ensureAudioGraph();
+      const nodes=effectNodesRef.current;
+      if(!nodes) throw new Error("The audio processor could not be connected.");
+      // The SoundTouch worklet expects the media-element rate and its matching
+      // playbackRate parameter to be equal; it compensates pitch internally.
+      audio.preservesPitch=false;
+      if(tempoRampRef.current!==null)cancelAnimationFrame(tempoRampRef.current);
+      const startRate=Math.max(.5,Math.min(2,audio.playbackRate||1));
+      const started=performance.now();
+      const duration=220;
+      const param=nodes.soundTouch.parameters.get("playbackRate");
+      await new Promise<void>(resolve=>{
+        const step=(now:number)=>{
+          const progress=Math.min(1,(now-started)/duration);
+          const eased=progress*progress*(3-2*progress);
+          const next=startRate+(rate-startRate)*eased;
+          audio.playbackRate=next;
+          param?.setValueAtTime(next,context.currentTime);
+          if(progress<1)tempoRampRef.current=requestAnimationFrame(step);
+          else {tempoRampRef.current=null;audio.playbackRate=rate;param?.setValueAtTime(rate,context.currentTime);resolve();}
+        };
+        tempoRampRef.current=requestAnimationFrame(step);
+      });
+    } catch(error) {
+      // Keep basic pitch-preserving speed available if AudioWorklet cannot start.
+      audio.preservesPitch=true;
+      audio.playbackRate=rate;
+      throw error;
+    }
   };
   const setPitchSemitones = async (value:number) => {
     const semitones=Math.max(-12,Math.min(12,Math.round(value)));
@@ -901,12 +937,15 @@ export default function HomePage() {
     if(!param) throw new Error("Pitch processing is unavailable.");
     param.setValueAtTime(semitones,context.currentTime);
   };
-  const updateAudioEffects = async (next:{bass?:number;bassFrequency?:number;distortion?:boolean;reverb?:boolean;delay?:boolean;lowPass?:number;highPass?:number}) => {
+  const updateAudioEffects = async (next:{bass?:number;bassFrequency?:number;bassQ?:number;subBass?:number;punch?:number;distortion?:boolean;reverb?:boolean;delay?:boolean;lowPass?:number;highPass?:number}) => {
     const context=await ensureAudioGraph();
     const nodes=effectNodesRef.current!;
     const now=context.currentTime;
     if(next.bass!==undefined) nodes.bass.gain.setTargetAtTime(Math.max(0,Math.min(100,next.bass))*.12,now,.06);
     if(next.bassFrequency!==undefined) nodes.bass.frequency.setTargetAtTime(Math.max(40,Math.min(250,next.bassFrequency)),now,.06);
+    if(next.bassQ!==undefined) nodes.bass.Q.setTargetAtTime(Math.max(.4,Math.min(2.5,next.bassQ)),now,.06);
+    if(next.subBass!==undefined) nodes.subBass.gain.setTargetAtTime(Math.max(0,Math.min(100,next.subBass))*.1,now,.08);
+    if(next.punch!==undefined) nodes.punch.gain.setTargetAtTime(Math.max(0,Math.min(100,next.punch))*.09,now,.08);
     if(next.distortion!==undefined){
       const amount=next.distortion?28:0;
       const curve=new Float32Array(44100);
@@ -924,7 +963,7 @@ export default function HomePage() {
   const setBass = async (value:number) => {
     setBassLevel(value);
     setBassBoostEnabled(value>0);
-    try{await updateAudioEffects({bass:value,bassFrequency});}
+    try{await updateAudioEffects({bass:value,bassFrequency,bassQ,subBass:subBassLevel,punch:bassPunch});}
     catch(error){notify(error instanceof Error?error.message:"Bass control is unavailable for this playback.","warning","Audio effect unavailable");}
   };
   const toggleBassBoost = () => {
@@ -932,7 +971,7 @@ export default function HomePage() {
     setBassStudioOpen(true);
   };
   const resetAudioMod = () => {
-    setBassLevel(0); setBassBoostEnabled(false); setDistortionEnabled(false);
+    setBassLevel(0); setBassBoostEnabled(false); setSubBassLevel(0); setBassPunch(0); setDistortionEnabled(false);
     setReverbEnabled(false); setDelayEnabled(false); setPitch(0); setLowPass(0); setHighPass(0); setPlaySpeed(1);
     const context=audioContextRef.current;
     const nodes=effectNodesRef.current;
@@ -941,7 +980,7 @@ export default function HomePage() {
       const now=context.currentTime;
       nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(1,now);
       nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(0,now);
-      void updateAudioEffects({bass:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0});
+      void updateAudioEffects({bass:0,subBass:0,punch:0,distortion:false,reverb:false,delay:false,lowPass:0,highPass:0});
     }
   };
   const chooseAudioPreset = (preset:string) => {
@@ -954,7 +993,7 @@ export default function HomePage() {
       "Muffled":{speed:1,bass:0,pitch:0,distort:false,reverb:false,delay:false,low:65,high:0}
     };
     const p=presets[preset]; if(!p)return;
-    setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setPitch(p.pitch);
+    setBassLevel(p.bass); setBassBoostEnabled(p.bass>0); setSubBassLevel(0); setBassPunch(0); setPitch(p.pitch);
     setDistortionEnabled(p.distort); setReverbEnabled(p.reverb); setDelayEnabled(p.delay); setLowPass(p.low); setHighPass(p.high);
     void (async()=>{
       try{
@@ -965,7 +1004,7 @@ export default function HomePage() {
         audio.playbackRate=p.speed;
         nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(p.speed,context.currentTime);
         nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(p.pitch,context.currentTime);
-        await updateAudioEffects({bass:p.bass,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high});
+        await updateAudioEffects({bass:p.bass,subBass:0,punch:0,distortion:p.distort,reverb:p.reverb,delay:p.delay,lowPass:p.low,highPass:p.high});
         setPlaySpeed(p.speed);
         notify(preset+" preset applied.");
       }catch(error){notify(error instanceof Error?error.message:"Could not apply this preset.","error");}
@@ -1439,11 +1478,14 @@ export default function HomePage() {
       {bassStudioOpen && current && (
         <div className="af-tools-backdrop af-audiomod-backdrop" role="presentation" onClick={()=>setBassStudioOpen(false)}>
           <section className="af-bass-studio" role="dialog" aria-modal="true" aria-label="Bass Boost studio" onClick={e=>e.stopPropagation()}>
-            <header><button onClick={()=>setBassStudioOpen(false)} aria-label="Close bass studio"><ChevronLeft/></button><strong>Bass Studio</strong><button onClick={()=>void setBass(0)}>Reset</button></header>
-            <p>Shape the low end of this track. Changes apply live while it plays.</p>
-            <div className="af-bass-enable"><div><strong>Bass Boost</strong><small>Enhance kick drums and low frequencies</small></div><input type="checkbox" checked={bassBoostEnabled} onChange={e=>void setBass(e.target.checked?55:0)}/></div>
-            <div className="af-audiomod-control"><strong>Bass intensity</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
-            <div className="af-audiomod-control"><strong>Bass frequency</strong><div className="af-range-row"><input type="range" min="40" max="250" step="5" value={bassFrequency} onChange={e=>{const value=Number(e.target.value);setBassFrequency(value);void updateAudioEffects({bass:bassLevel,bassFrequency:value}).catch(error=>notify(error instanceof Error?error.message:"Frequency control unavailable.","error"));}}/><b>{bassFrequency} Hz</b></div></div>
+            <header><button onClick={()=>setBassStudioOpen(false)} aria-label="Close bass studio"><ChevronLeft/></button><strong>Bass Studio</strong><button onClick={()=>{setBassLevel(0);setBassBoostEnabled(false);setSubBassLevel(0);setBassPunch(0);setBassQ(.7);setBassFrequency(90);void updateAudioEffects({bass:0,subBass:0,punch:0,bassQ:.7,bassFrequency:90}).catch(error=>notify(error instanceof Error?error.message:"Bass reset failed.","error"));}}>Reset</button></header>
+            <p>Shape the low end with separate sub-bass, body and punch controls. Changes apply live while it plays.</p>
+            <div className="af-bass-enable"><div><strong>Bass Boost</strong><small>Enable the low-frequency enhancement chain</small></div><input type="checkbox" checked={bassBoostEnabled||subBassLevel>0||bassPunch>0} onChange={e=>{if(!e.target.checked){setBassLevel(0);setSubBassLevel(0);setBassPunch(0);setBassBoostEnabled(false);void updateAudioEffects({bass:0,subBass:0,punch:0});}else{void setBass(55);}}}/></div>
+            <div className="af-audiomod-control"><strong>Main bass intensity</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
+            <div className="af-audiomod-control"><strong>Sub-bass depth · 55 Hz</strong><div className="af-range-row"><input type="range" min="0" max="100" value={subBassLevel} onChange={e=>{const value=Number(e.target.value);setSubBassLevel(value);void updateAudioEffects({subBass:value}).catch(error=>notify(error instanceof Error?error.message:"Sub-bass control unavailable.","error"));}}/><b>{subBassLevel}%</b></div></div>
+            <div className="af-audiomod-control"><strong>Kick punch · 115 Hz</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassPunch} onChange={e=>{const value=Number(e.target.value);setBassPunch(value);void updateAudioEffects({punch:value}).catch(error=>notify(error instanceof Error?error.message:"Punch control unavailable.","error"));}}/><b>{bassPunch}%</b></div></div>
+            <div className="af-audiomod-control"><strong>Bass centre frequency</strong><div className="af-range-row"><input type="range" min="40" max="250" step="5" value={bassFrequency} onChange={e=>{const value=Number(e.target.value);setBassFrequency(value);void updateAudioEffects({bass:bassLevel,bassFrequency:value}).catch(error=>notify(error instanceof Error?error.message:"Frequency control unavailable.","error"));}}/><b>{bassFrequency} Hz</b></div></div>
+            <div className="af-audiomod-control"><strong>Bass resonance (Q)</strong><div className="af-range-row"><input type="range" min=".4" max="2.5" step=".1" value={bassQ} onChange={e=>{const value=Number(e.target.value);setBassQ(value);void updateAudioEffects({bassQ:value}).catch(error=>notify(error instanceof Error?error.message:"Resonance control unavailable.","error"));}}/><b>{bassQ.toFixed(1)}</b></div></div>
             <button className="af-audiomod-share" onClick={()=>setBassStudioOpen(false)}>Done</button>
           </section>
         </div>
