@@ -10,8 +10,9 @@ async function cacheShellPage(cache, path) {
     await cache.put(path, response.clone());
     if (path === "/manifest.webmanifest") return;
     const html = await response.clone().text();
-    const assets = Array.from(html.matchAll(/(?:src|href)=["']([^"']*\\/_next\\/static\\/[^"']+)["']/g))
-      .map(match => new URL(match[1], self.location.origin).href);
+    const assets = Array.from(html.matchAll(/(?:src|href)=["']([^"']+)["']/g))
+      .map(match => match[1]).filter(asset => asset.includes("/_next/static/"))
+      .map(asset => new URL(asset, self.location.origin).href);
     await Promise.all(Array.from(new Set(assets)).map(async asset => {
       try { const assetResponse = await fetch(new Request(asset, { cache: "reload" })); if (assetResponse.ok) await cache.put(asset, assetResponse.clone()); } catch (_) {}
     }));
