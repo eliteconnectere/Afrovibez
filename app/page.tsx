@@ -583,7 +583,24 @@ export default function HomePage() {
       setCurrentTime(0);
     });
     audio.addEventListener("pause", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(false); });
-    audio.addEventListener("error", () => { setPlaying(false); notify("This track could not be played right now. Please try again.", "error", "Unable to play track"); });
+    let recovering=false;
+    const recoverAudio=async()=>{
+      if(recovering||!currentTrackIdRef.current)return;
+      recovering=true;
+      const resumeAt=Number.isFinite(audio.currentTime)?audio.currentTime:0;
+      const originalSrc=audio.currentSrc||audio.src;
+      try{
+        const localBlob=await getOfflineBlob(currentTrackIdRef.current);
+        const retrySrc=localBlob?(activeObjectUrlRef.current=URL.createObjectURL(localBlob)):originalSrc;
+        if(!retrySrc||(!localBlob&&!navigator.onLine)){setPlaying(false);notify("Connection interrupted. If this song is downloaded, it can play offline.","warning","Playback paused");return;}
+        audio.src=retrySrc;audio.load();
+        audio.addEventListener("loadedmetadata",()=>{try{audio.currentTime=Math.min(resumeAt,audio.duration||resumeAt);}catch{} void audio.play().then(()=>setPlaying(true)).catch(()=>setPlaying(false));},{once:true});
+      }catch{setPlaying(false);}
+      finally{window.setTimeout(()=>{recovering=false;},1800);}
+    };
+    audio.addEventListener("error",()=>{void recoverAudio();});
+    const onNetworkRestored=()=>{if(audio.error||audio.readyState<2)void recoverAudio();};
+    window.addEventListener("online",onNetworkRestored);
     audio.addEventListener("play", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(true); });
     audio.addEventListener("timeupdate", () => {
       const now = audio.currentTime;
@@ -602,6 +619,7 @@ export default function HomePage() {
     );
     audio.addEventListener("ended", () => setCurrentTime(0));
     return () => {
+      window.removeEventListener("online",onNetworkRestored);
       audio.pause();
       audio.src = "";
     };
@@ -1566,7 +1584,7 @@ export default function HomePage() {
               <div className="af-mode-list">
                 {([{id:"sped",label:"Sped Up"},{id:"slowed",label:"Slowed"},{id:"nightcore",label:"Nightcore"},{id:"daycore",label:"Daycore"},{id:"normal",label:"Original"}] as const).map(mode=><button key={mode.id} className={audioMode===mode.id?"selected":""} onClick={()=>applyAudioMode(mode.id)}><span>{mode.label}</span><small>{mode.id==="normal"?"1.0×":mode.id==="sped"?"1.25×":mode.id==="slowed"?"0.8×":mode.id==="nightcore"?"1.35×":"0.85×"}</small></button>)}
               </div>
-              <button className="af-audiomod-share" onClick={()=>setAudioModOpen(true)}>Open Audiomod Studio</button>
+
             </div>
                         <div className="af-repeat-row">
               <button className={repeatEnabled?"active":""} onClick={()=>{const v=!repeatEnabled;repeatRef.current=v;setRepeatEnabled(v);notify(v?"Repeat enabled":"Repeat disabled");}} aria-pressed={repeatEnabled}><Repeat/> Repeat {repeatEnabled?"On":"Off"}</button>
