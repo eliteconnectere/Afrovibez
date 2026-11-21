@@ -256,8 +256,6 @@ export default function HomePage() {
   const getOfflineAssets = async()=>{const db=await openOfflineDb();const rows=await new Promise<any[]>((resolve,reject)=>{const tx=db.transaction("assets","readonly");const req=tx.objectStore("assets").getAll();req.onsuccess=()=>resolve(req.result||[]);req.onerror=()=>reject(req.error);});db.close();return rows;};
   const getOfflineAssetBlob=async(key:string):Promise<Blob|null>=>{let db:IDBDatabase|null=null;try{db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db!.transaction("assets","readonly").objectStore("assets").get(key);req.onsuccess=()=>resolve(req.result?.blob instanceof Blob?req.result.blob:null);req.onerror=()=>reject(req.error);});}catch{return null;}finally{db?.close();}};
   const getOfflineBlob = async (id:number):Promise<Blob|null>=>{let db:IDBDatabase|null=null;try{db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db!.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.blob||null);req.onerror=()=>reject(req.error);});}catch{return null;}finally{db?.close();}};
-  const getOfflineArtworkBlob=async(id:number):Promise<Blob|null>=>{let db:IDBDatabase|null=null;try{db=await openOfflineDb();return await new Promise((resolve,reject)=>{const req=db!.transaction("tracks","readonly").objectStore("tracks").get(id);req.onsuccess=()=>resolve(req.result?.artworkBlob instanceof Blob?req.result.artworkBlob:null);req.onerror=()=>reject(req.error);});}catch{return null;}finally{db?.close();}};
-  const recoverArtworkFromDevice=async(event:React.SyntheticEvent<HTMLImageElement>,track:Track)=>{const image=event.currentTarget;if(image.dataset.offlineArtworkRetry==="1")return;image.dataset.offlineArtworkRetry="1";try{const saved=await getOfflineArtworkBlob(track.trackId);if(saved&&saved.size&&saved.type.startsWith("image/")){const replacement=URL.createObjectURL(saved);image.src=replacement;return;}}catch(error){console.warn("Could not restore downloaded cover from device storage",track.trackId,error);}image.style.visibility="hidden";};
   const saveOfflineBlob = async (track:Track,blob:Blob,artworkBlob:Blob,artistProfile:any,artistAvatarBlob:Blob|null)=>{const db=await openOfflineDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("tracks","readwrite");tx.objectStore("tracks").put({trackId:track.trackId,studioTrackId:track.studioTrackId,blob,artworkBlob,artistAvatarBlob,artistProfile,trackName:track.trackName,artistName:track.artistName,artworkUrl100:track.artworkUrl100,artistId:track.artistId,primaryGenreName:track.primaryGenreName,collectionName:track.collectionName,allowDownloads:track.allowDownloads,trackViewUrl:track.trackViewUrl,source:track.source,trackExplicitness:track.trackExplicitness,savedAt:Date.now()});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();};
   const deleteOfflineBlob = async (id:number):Promise<boolean>=>{
      let db:IDBDatabase|null=null;
@@ -829,13 +827,7 @@ export default function HomePage() {
   };
 
   const isExplicit = (track: Track) => track.trackExplicitness?.toLowerCase() === "explicit" || track.contentAdvisoryRating?.toLowerCase() === "explicit";
-  const artworkUrl = (track: Track, high: string, low: string) => {
-    // Prefer the locally persisted artwork blob for downloaded tracks, so signed
-    // Supabase URLs expiring or airplane mode never break their cover images.
-    const localArtwork=offlineTracks.find(saved=>saved.trackId===track.trackId)?.artworkUrl100;
-    const source=localArtwork||track.artworkUrl100||"";
-    return source.startsWith("blob:")?source:source.replace("100x100",highQualityArtwork?high:low);
-  };
+  const artworkUrl = (track: Track, high: string, low: string) => track.artworkUrl100?.replace("100x100", highQualityArtwork ? high : low);
   const likedTracks = [...studioTracks, ...offlineTracks]
     .filter((track, index, all) => liked.has(track.trackId) && all.findIndex(item => item.trackId === track.trackId) === index);
 
@@ -1075,7 +1067,7 @@ export default function HomePage() {
     <article className="track-card" onClick={(e)=>{if((e.target as HTMLElement).closest("button"))return;void playTrack(track);}} role="button" tabIndex={0} onKeyDown={e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();void playTrack(track);}}}>
       <div className="cover-wrap">
         <img
-          src={artworkUrl(track, "400x400", "100x100")} onError={e=>void recoverArtworkFromDevice(e,track)}
+          src={artworkUrl(track, "400x400", "100x100")}
           alt=""
           loading={index > 6 ? "lazy" : "eager"}
         />
@@ -1126,7 +1118,7 @@ export default function HomePage() {
           {list.map((track, i) => (
             <article className="row-card" key={track.trackId} role="button" tabIndex={0} onClick={()=>void playTrack(track)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")void playTrack(track);}}>
               <div className="row-cover">
-                <img src={artworkUrl(track, "300x300", "100x100")} onError={e=>void recoverArtworkFromDevice(e,track)} alt="" loading="lazy" />
+                <img src={artworkUrl(track, "300x300", "100x100")} alt="" loading="lazy" />
                 <button
                   className="row-play"
                   onClick={() => playTrack(track)}
@@ -1235,7 +1227,7 @@ export default function HomePage() {
                     {visibleTracks.slice(0, 4).map((track, index) => (
                       <article className="discovery-pick" key={track.trackId}>
                         <button className="discovery-pick-main" onClick={() => void playTrack(track)} disabled={!track.audioUrl && !offlineDownloads.has(track.trackId)}>
-                          <img src={artworkUrl(track, "100x100", "100x100")} onError={e=>void recoverArtworkFromDevice(e,track)} alt="" loading={index < 2 ? "eager" : "lazy"} />
+                          <img src={artworkUrl(track, "100x100", "100x100")} alt="" loading={index < 2 ? "eager" : "lazy"} />
                           <span className="discovery-pick-copy">
                             <strong title={track.trackName}>{track.trackName}</strong>
                             <span>{track.artistName}</span>
@@ -1326,7 +1318,7 @@ export default function HomePage() {
                     <article className="chart-row" key={track.trackId}>
                       <span className="rank">{i + 1}</span>
                       <div className="chart-cover">
-                        <img src={artworkUrl(track, "200x200", "100x100")} onError={e=>void recoverArtworkFromDevice(e,track)} alt="" />
+                        <img src={artworkUrl(track, "200x200", "100x100")} alt="" />
                         <button
                           className="chart-play"
                           onClick={() => playTrack(track)}
@@ -1413,7 +1405,7 @@ export default function HomePage() {
       {current && (
         <div className="player" role="region" aria-label="Music player">
           <button className="player-open" onClick={() => setPlayerOpen(true)} aria-label="Open full player">
-            <img src={artworkUrl(current,"600x600","100x100")} onError={e=>void recoverArtworkFromDevice(e,current)} alt="" />
+            <img src={current.artworkUrl100?.replace("100x100","600x600")} alt="" />
             <span className="player-track">
               <strong>{current.trackName}</strong>
               <span>{current.artistName} · {"Full release"}</span>
@@ -1561,8 +1553,8 @@ export default function HomePage() {
               <div><small>NOW PLAYING</small><strong>AFROVIBEZ</strong></div>
               <button onClick={() => {setView("queue");setPlayerOpen(false);}} aria-label={`Open queue, ${queue.length} tracks`}><ListMusic/></button>
             </header>
-            <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.35) 95%),url(${artworkUrl(current,"600x600","100x100")})`}}>
-              <img className={playing?"af-artwork-rotating":""} src={artworkUrl(current,"600x600","100x100")} onError={e=>void recoverArtworkFromDevice(e,current)} alt={`Album artwork for ${current.trackName}`}/>
+            <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.35) 95%),url(${current.artworkUrl100?.replace("100x100","600x600")})`}}>
+              <img className={playing?"af-artwork-rotating":""} src={artworkUrl(current,"600x600","100x100")} alt={`Album artwork for ${current.trackName}`}/>
             </div>
             <div className="af-track-heading">
               <div><span>{current.artistName}</span><h1>{current.trackName}</h1><small>{current.collectionName || "Single"} · {current.primaryGenreName || "Music"}</small></div>
