@@ -138,6 +138,7 @@ export default function HomePage() {
   const audioGraphInitRef = useRef<Promise<AudioContext> | null>(null);
   const tempoRampRef = useRef<number | null>(null);
   const playRequestRef = useRef(0);
+  const activePlaybackOfflineRef = useRef(false);
   const bassFilterRef = useRef<BiquadFilterNode | null>(null);
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState(0);
   const [sleepTimerOpen, setSleepTimerOpen] = useState(false);
@@ -589,7 +590,7 @@ export default function HomePage() {
     audio.addEventListener("pause", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(false); });
     let recovering=false;
     const recoverAudio=async()=>{
-      if(recovering||!currentTrackIdRef.current)return;
+      if(recovering||!currentTrackIdRef.current||activePlaybackOfflineRef.current)return;
       recovering=true;
       const resumeAt=Number.isFinite(audio.currentTime)?audio.currentTime:0;
       const originalSrc=audio.currentSrc||audio.src;
@@ -603,7 +604,7 @@ export default function HomePage() {
       finally{window.setTimeout(()=>{recovering=false;},1800);}
     };
     audio.addEventListener("error",()=>{void recoverAudio();});
-    const onNetworkRestored=()=>{if(audio.error||audio.readyState<2)void recoverAudio();};
+    const onNetworkRestored=()=>{if(!activePlaybackOfflineRef.current&&!audio.paused&&audio.error)void recoverAudio();};
     window.addEventListener("online",onNetworkRestored);
     audio.addEventListener("play", () => { lastAudioTimeRef.current = audio.currentTime; setPlaying(true); });
     audio.addEventListener("timeupdate", () => {
@@ -633,39 +634,84 @@ export default function HomePage() {
     const audio = audioRef.current;
     if (!audio) return;
     const requestId = ++playRequestRef.current;
-    if (current?.trackId === track.trackId && !audio.paused) {
-      audio.pause();
-      return;
-    }
-    if (current?.trackId === track.trackId && audio.paused) {
-      await audio.play();
-      return;
-    }
+
+    // A single HTMLAudioElement is the only playback engine. Selecting any
+    // track invalidates pending source/recovery work and stops the prior track
+    // immediately, before asynchronous IndexedDB/effect setup.
     audio.pause();
-    if(tempoRampRef.current!==null){cancelAnimationFrame(tempoRampRef.current);tempoRampRef.current=null;}
-    if(activeObjectUrlRef.current){URL.revokeObjectURL(activeObjectUrlRef.current);activeObjectUrlRef.current=null;}
-    const offlineBlob=await getOfflineBlob(track.trackId);
-    if(requestId!==playRequestRef.current)return;
-    if(!offlineBlob&&!track.audioUrl){notify("This song is not saved offline. Connect to the internet to play it.");return;}
-    if(!offlineBlob&&!navigator.onLine){notify("This song is not saved offline. Connect to the internet to play or download it.");return;}
+    if (tempoRampRef.current !== null) {
+      cancelAnimationFrame(tempoRampRef.current);
+      tempoRampRef.current = null;
+    }
+
+    // Tapping the currently selected song again restarts that same song;
+    // it must never create a second playback instance.
+    if (currentTrackIdRef.current === track.trackId && audio.src) {
+      try {
+        audio.currentTime = 0;
+        await audio.play();
+        if (requestId === playRequestRef.current) setPlaying(true);
+      } catch {
+        if (requestId === playRequestRef.current) setError("This song could not be replayed. Please try again.");
+      }
+      return;
+    }
+
+    if (activeObjectUrlRef.current) {
+      URL.revokeObjectURL(activeObjectUrlRef.current);
+      activeObjectUrlRef.current = null;
+    }
+    const offlineBlob = await getOfflineBlob(track.trackId);
+    if (requestId !== playRequestRef.current) return;
+    if (!offlineBlob && !track.audioUrl) {
+      notify("This song is not saved offline. Connect to the internet to play it.");
+      return;
+    }
+    if (!offlineBlob && !navigator.onLine) {
+      notify("This song is not saved offline. Connect to the internet to play or download it.");
+      return;
+    }
+
+    activePlaybackOfflineRef.current = !!offlineBlob;
     audio.crossOrigin = "anonymous";
-    audio.preload = "none";
-    if(offlineBlob){activeObjectUrlRef.current=URL.createObjectURL(offlineBlob);audio.src=activeObjectUrlRef.current;}else{audio.src=track.audioUrl;}
+    audio.preload = "auto";
+    if (offlineBlob) {
+      activeObjectUrlRef.current = URL.createObjectURL(offlineBlob);
+      audio.src = activeObjectUrlRef.current;
+    } else {
+      audio.src = track.audioUrl;
+    }
+
     let savedPreferences: Record<string, unknown> = {};
     try { savedPreferences = JSON.parse(localStorage.getItem("afrovibez.preferences.v1") || "{}"); } catch {}
     audio.volume = Math.max(0, Math.min(100, Number(savedPreferences.volume ?? 85))) / 100;
     const selectedMode = keepAudioMode ? audioMode : ((savedPreferences.defaultMode as typeof audioMode) || "normal");
     setAudioMode(selectedMode);
-    const modeRate=selectedMode==="sped"?1.25:selectedMode==="slowed"?.8:selectedMode==="nightcore"?1.35:selectedMode==="daycore"?.85:1;
-    // Mode rate and slider rate are two representations of one setting, not multipliers.
-    const effectiveRate=Math.max(.5,Math.min(2,keepAudioMode?playSpeed:modeRate));
+    const modeRate = selectedMode === "sped" ? 1.25 : selectedMode === "slowed" ? .8 : selectedMode === "nightcore" ? 1.35 : selectedMode === "daycore" ? .85 : 1;
+    const effectiveRate = Math.max(.5, Math.min(2, keepAudioMode ? playSpeed : modeRate));
     setPlaySpeed(effectiveRate);
-    audio.preservesPitch=true;
-    audio.playbackRate=effectiveRate;
-    // Keep tempo in the native media element. Running the same rate through
-    // SoundTouch as well caused the two rate stages to compound and jump.
-    const activeEffects=bassLevel>0||subBassLevel>0||bassPunch>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0;
-    if(activeEffects||effectNodesRef.current){try{const context=await ensureAudioGraph();const nodes=effectNodesRef.current!;audio.preservesPitch=true;nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(1,context.currentTime);nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);await updateAudioEffects({bass:bassLevel,bassFrequency,bassQ,subBass:subBassLevel,punch:bassPunch,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});}catch(error){notify(error instanceof Error?error.message:"Audio processing could not start. Playing the original audio instead.","warning");audio.preservesPitch=true;audio.playbackRate=effectiveRate;}}
+    audio.preservesPitch = true;
+    audio.playbackRate = effectiveRate;
+
+    const activeEffects = bassLevel>0||subBassLevel>0||bassPunch>0||distortionEnabled||reverbEnabled||delayEnabled||lowPass>0||highPass>0||pitch!==0;
+    if (activeEffects || effectNodesRef.current) {
+      try {
+        const context = await ensureAudioGraph();
+        if (requestId !== playRequestRef.current) return;
+        const nodes = effectNodesRef.current!;
+        audio.preservesPitch = true;
+        nodes.soundTouch.parameters.get("playbackRate")?.setValueAtTime(1,context.currentTime);
+        nodes.soundTouch.parameters.get("pitchSemitones")?.setValueAtTime(pitch,context.currentTime);
+        await updateAudioEffects({bass:bassLevel,bassFrequency,bassQ,subBass:subBassLevel,punch:bassPunch,distortion:distortionEnabled,reverb:reverbEnabled,delay:delayEnabled,lowPass,highPass});
+      } catch (error) {
+        if (requestId !== playRequestRef.current) return;
+        notify(error instanceof Error ? error.message : "Audio processing could not start. Playing the original audio instead.","warning");
+        audio.preservesPitch = true;
+        audio.playbackRate = effectiveRate;
+      }
+    }
+
+    if (requestId !== playRequestRef.current) return;
     currentTrackIdRef.current = track.trackId;
     currentTrackUuidRef.current = track.studioTrackId || null;
     listenedSecondsRef.current = 0;
@@ -676,8 +722,9 @@ export default function HomePage() {
     setDuration(0);
     try {
       await audio.play();
+      if (requestId === playRequestRef.current) setPlaying(true);
     } catch {
-      setError("This full track could not be played. Please try again.");
+      if (requestId === playRequestRef.current) setError("This full track could not be played. Please try again.");
     }
   };
 
