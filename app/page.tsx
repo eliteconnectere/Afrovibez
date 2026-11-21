@@ -592,14 +592,18 @@ export default function HomePage() {
     const recoverAudio=async()=>{
       if(recovering||!currentTrackIdRef.current||activePlaybackOfflineRef.current)return;
       recovering=true;
+      const recoveryRequestId=playRequestRef.current;
+      const recoveringTrackId=currentTrackIdRef.current;
       const resumeAt=Number.isFinite(audio.currentTime)?audio.currentTime:0;
       const originalSrc=audio.currentSrc||audio.src;
       try{
-        const localBlob=await getOfflineBlob(currentTrackIdRef.current);
+        const localBlob=await getOfflineBlob(recoveringTrackId!);
+        if(recoveryRequestId!==playRequestRef.current||recoveringTrackId!==currentTrackIdRef.current)return;
         const retrySrc=localBlob?(activeObjectUrlRef.current=URL.createObjectURL(localBlob)):originalSrc;
         if(!retrySrc||(!localBlob&&!navigator.onLine)){setPlaying(false);notify("Connection interrupted. If this song is downloaded, it can play offline.","warning","Playback paused");return;}
-        audio.src=retrySrc;audio.load();
-        audio.addEventListener("loadedmetadata",()=>{try{audio.currentTime=Math.min(resumeAt,audio.duration||resumeAt);}catch{} void audio.play().then(()=>setPlaying(true)).catch(()=>setPlaying(false));},{once:true});
+        audio.pause();audio.src=retrySrc;audio.load();
+        if(localBlob)activePlaybackOfflineRef.current=true;
+        audio.addEventListener("loadedmetadata",()=>{if(recoveryRequestId!==playRequestRef.current||recoveringTrackId!==currentTrackIdRef.current)return;try{audio.currentTime=Math.min(resumeAt,audio.duration||resumeAt);}catch{} void audio.play().then(()=>{if(recoveryRequestId===playRequestRef.current)setPlaying(true);}).catch(()=>{if(recoveryRequestId===playRequestRef.current)setPlaying(false);});},{once:true});
       }catch{setPlaying(false);}
       finally{window.setTimeout(()=>{recovering=false;},1800);}
     };
