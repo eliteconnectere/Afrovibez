@@ -1118,7 +1118,7 @@ export default function HomePage() {
           {list.map((track, i) => (
             <article className="row-card" key={track.trackId} role="button" tabIndex={0} onClick={()=>void playTrack(track)} onKeyDown={e=>{if(e.key==="Enter"||e.key===" ")void playTrack(track);}}>
               <div className="row-cover">
-                <img src={artworkUrl(track, "300x300", "100x100")} alt="" loading="lazy" />
+                <img src={artworkUrl(track, "300x300", "100x100")} alt="" loading="eager" decoding="async" fetchPriority="high" />
                 <button
                   className="row-play"
                   onClick={() => playTrack(track)}
