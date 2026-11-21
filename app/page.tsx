@@ -417,7 +417,7 @@ export default function HomePage() {
         }
         if(artworkBlob||avatarBlob)await updateOfflineTrackVisuals(savedTrack.trackId,artworkBlob,avatarBlob);
         if(artworkBlob&&!savedTrack.artworkUrl100){setOfflineTracks(current=>current.map(track=>track.trackId===savedTrack.trackId?{...track,artworkUrl100:URL.createObjectURL(artworkBlob!)}:track));}
-        if(sourceTrack.artistId&&profile&&avatarBlob){void cacheOfflineAsset(`artist-profile:${sourceTrack.artistId}`,avatarBlob,{...profile,avatarUrl:""});setArtistProfiles(current=>({...current,[sourceTrack.artistId!]:{...profile,avatarUrl:URL.createObjectURL(avatarBlob!)}}));}
+        if(sourceTrack.artistId&&profile&&avatarBlob){void cacheOfflineAsset(`artist-profile:${sourceTrack.artistId}`,avatarBlob,{...profile,avatarUrl:""});setArtistProfiles(current=>{const existing=current[sourceTrack.artistId!];if(existing?.avatarUrl?.startsWith("blob:"))return current;return {...current,[sourceTrack.artistId!]:{...profile,avatarUrl:URL.createObjectURL(avatarBlob!)}};});}
       }
     })().catch(error=>console.warn("Offline visual repair could not finish:",error));
     return()=>{cancelled=true;};
