@@ -1407,7 +1407,7 @@ export default function HomePage() {
       {current && (
         <div className="player" role="region" aria-label="Music player">
           <button className="player-open" onClick={() => setPlayerOpen(true)} aria-label="Open full player">
-            <img src={current.artworkUrl100} alt="" />
+            <img src={artworkUrl(current,"600x600","100x100")} alt="" />
             <span className="player-track">
               <strong>{current.trackName}</strong>
               <span>{current.artistName} · {"Full release"}</span>
@@ -1555,8 +1555,8 @@ export default function HomePage() {
               <div><small>NOW PLAYING</small><strong>AFROVIBEZ</strong></div>
               <button onClick={() => {setView("queue");setPlayerOpen(false);}} aria-label={`Open queue, ${queue.length} tracks`}><ListMusic/></button>
             </header>
-            <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.35) 95%),url(${current.artworkUrl100?.replace("100x100","600x600")})`}}>
-              <img className={playing?"af-artwork-rotating":""} src={current.artworkUrl100?.replace("100x100","600x600")} alt={`Album artwork for ${current.trackName}`}/>
+            <div className="af-player-art" style={{backgroundImage:`linear-gradient(180deg,rgba(255,255,255,.10),rgba(255,255,255,.35) 95%),url(${artworkUrl(current,"600x600","100x100")})`}}>
+              <img className={playing?"af-artwork-rotating":""} src={artworkUrl(current,"600x600","100x100")} alt={`Album artwork for ${current.trackName}`}/>
             </div>
             <div className="af-track-heading">
               <div><span>{current.artistName}</span><h1>{current.trackName}</h1><small>{current.collectionName || "Single"} · {current.primaryGenreName || "Music"}</small></div>
