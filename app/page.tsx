@@ -671,6 +671,13 @@ export default function HomePage() {
   const removeOfflineDownload = async (track: Track) => {
     openAppDialog({title:"Remove download?",message:"You won't be able to listen offline unless you download it again.",confirmLabel:"Remove",tone:"danger",onConfirm:()=>{void (async()=>{const removed=await deleteOfflineBlob(track.trackId);notify(removed?"Download removed":"We couldn't remove this download. Please try again.",removed?"success":"error",removed?"Removed from Downloads":"Couldn't remove download");})();}});
   };
+  const protectOfflineStorage = async () => {
+    if(typeof navigator==="undefined"||!navigator.storage)return {persistent:false,quota:null as number|null,usage:null as number|null};
+    let persistent=false,quota:number|null=null,usage:number|null=null;
+    try{persistent=await navigator.storage.persist();}catch(error){console.info("Browser did not grant persistent offline storage:",error);}
+    try{const estimate=await navigator.storage.estimate();quota=typeof estimate.quota==="number"?estimate.quota:null;usage=typeof estimate.usage==="number"?estimate.usage:null;}catch{}
+    return {persistent,quota,usage};
+  };
   const startOfflineDownload = async (track:Track) => {
     setOfflineBusy(track.trackId);
     setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:0,total:null,percent:null});
@@ -688,6 +695,8 @@ export default function HomePage() {
       if(latest.allow_downloads===false)throw new Error("🔒 The artist has locked downloads for this release. You can still stream it.");
       const path=String(latest.audio_path||track.storagePath||"");
       if(!path)throw new Error("The original audio file could not be located.");
+      // Ask the browser to protect offline media from automatic storage eviction.
+      const storageProtection=await protectOfflineStorage();
       // Mint a fresh signed URL at download time. A URL created when the catalogue
       // first loaded may have expired while the listener kept the app open.
       const encoded=path.split("/").map(encodeURIComponent).join("/");
@@ -716,6 +725,7 @@ export default function HomePage() {
         setDownloadProgress({trackId:track.trackId,trackName:track.trackName,loaded:blob.size,total:blob.size,percent:100});
       }
       if(!blob.size)throw new Error("The downloaded audio file was empty.");
+      if(storageProtection.quota&&storageProtection.usage!==null&&storageProtection.quota-storageProtection.usage<blob.size*1.15)throw new Error("Your phone is low on offline storage. Free up device space, then download this song again.");
       if(!track.artworkUrl100)throw new Error("This release has no cover artwork available to save.");
       const artworkResponse=await fetch(track.artworkUrl100,{mode:"cors",cache:"no-store"});
       if(!artworkResponse.ok)throw new Error("We could not save this song’s cover artwork. Please retry while connected so the offline download includes its artwork.");
@@ -726,7 +736,7 @@ export default function HomePage() {
       if(profile?.avatar_path){try{const avatarPath=String(profile.avatar_path).split("/").map(encodeURIComponent).join("/");const avatarSign=await fetch(`${base}/storage/v1/object/sign/studio-artwork/${avatarPath}`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({expiresIn:600})});if(avatarSign.ok){const avatarData=await avatarSign.json();const avatarUrl=avatarData.signedURL?.startsWith("http")?avatarData.signedURL:`${base}/storage/v1${avatarData.signedURL||""}`;if(avatarUrl){const avatarResponse=await fetch(avatarUrl,{mode:"cors",cache:"no-store"});if(avatarResponse.ok){const candidate=await avatarResponse.blob();if(candidate.type.startsWith("image/")&&candidate.size)artistAvatarBlob=candidate;}}}}catch(avatarError){console.warn("Artist avatar could not be cached for offline use:",avatarError);}}
       const profileSnapshot=profile?{...profile,avatarUrl:""}:null;
       if(track.artistId&&artistAvatarBlob&&profileSnapshot)await cacheOfflineAsset(`artist-profile:${track.artistId}`,artistAvatarBlob,profileSnapshot);
-      await saveOfflineBlob({...track,storagePath:path},blob,artworkBlob,profileSnapshot,artistAvatarBlob);
+      try{await saveOfflineBlob({...track,storagePath:path},blob,artworkBlob,profileSnapshot,artistAvatarBlob);}catch(storageError:any){if(storageError?.name==="QuotaExceededError")throw new Error("Your device ran out of storage while saving. Free up phone storage and retry the offline download.");throw storageError;}
       setOfflineDownloads(prev=>new Set(Array.from(prev).concat(track.trackId)));
       setOfflineTracks(prev=>{const previous=prev.find(item=>item.trackId===track.trackId);if(previous?.artworkUrl100?.startsWith("blob:"))URL.revokeObjectURL(previous.artworkUrl100);return prev.filter(item=>item.trackId!==track.trackId).concat({...track,artworkUrl100:URL.createObjectURL(artworkBlob),storagePath:path,audioUrl:undefined});});
       if(track.artistId&&profile){setArtistProfiles(prev=>({...prev,[track.artistId!]:{...profile,avatarUrl:artistAvatarBlob?URL.createObjectURL(artistAvatarBlob):""}}));}
