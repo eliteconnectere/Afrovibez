@@ -823,7 +823,13 @@ export default function HomePage() {
   };
 
   const isExplicit = (track: Track) => track.trackExplicitness?.toLowerCase() === "explicit" || track.contentAdvisoryRating?.toLowerCase() === "explicit";
-  const artworkUrl = (track: Track, high: string, low: string) => track.artworkUrl100?.replace("100x100", highQualityArtwork ? high : low);
+  const artworkUrl = (track: Track, high: string, low: string) => {
+    // Prefer the locally persisted artwork blob for downloaded tracks, so signed
+    // Supabase URLs expiring or airplane mode never break their cover images.
+    const localArtwork=offlineTracks.find(saved=>saved.trackId===track.trackId)?.artworkUrl100;
+    const source=localArtwork||track.artworkUrl100||"";
+    return source.startsWith("blob:")?source:source.replace("100x100",highQualityArtwork?high:low);
+  };
   const likedTracks = [...studioTracks, ...offlineTracks]
     .filter((track, index, all) => liked.has(track.trackId) && all.findIndex(item => item.trackId === track.trackId) === index);
 
