@@ -1174,7 +1174,7 @@ export default function HomePage() {
             <Library size={19} /> {t("Your library")}
           </button>
           <button className={"nav-item " + (view==="queue"?"active":"")} onClick={()=>{setView("queue");setMobileNav(false);}}><ListOrdered size={19}/> {t("Your queue")}</button>
-          <a className="nav-item" href="/settings" onClick={() => setMobileNav(false)}>
+          <a className="nav-item" href="/settings" target="_blank" rel="noopener noreferrer" onClick={() => setMobileNav(false)}>
             <Settings size={19} /> {t("Settings")}
           </a>
         </nav>
