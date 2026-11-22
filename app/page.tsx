@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { translateText } from "../lib/i18n";
 import { ensureListenerAccessToken } from "../lib/listener-auth";
 import {
@@ -107,6 +108,7 @@ export default function HomePage() {
   const repeatRef = useRef(false);
   const [liked, setLiked] = useState<Set<number>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
+  const [mobileTabbarMounted, setMobileTabbarMounted] = useState(false);
   const [menuTrack, setMenuTrack] = useState<Track | null>(null);
   const [queue, setQueue] = useState<Track[]>([]);
   const [queueDragIndex, setQueueDragIndex] = useState<number | null>(null);
@@ -392,6 +394,7 @@ export default function HomePage() {
     }
   }, [studioTracks]);
 
+  useEffect(() => { setMobileTabbarMounted(true); }, []);
   useEffect(() => { document.documentElement.lang = language; }, [language]);
   useEffect(() => { if(playerOpen&&current) void loadTrackComments(current); }, [playerOpen,current?.studioTrackId]);
 
@@ -1466,13 +1469,16 @@ export default function HomePage() {
 
           <footer>© {new Date().getFullYear()} AFROVIBEZ <span>Discover. Listen. Feel.</span></footer>
         </div>
-        <nav className="mobile-tabbar" aria-label="Main sections">
-          <button className={view==="discover"?"active":""} onClick={()=>setView("discover")}><Home/><span>{t("Discover")}</span></button>
-          <button className={view==="charts"?"active":""} onClick={()=>setView("charts")}><TrendingUp/><span>{t("Charts")}</span></button>
-          <button className={view==="search"?"active":""} onClick={()=>setView("search")}><Search/><span>{t("Search")}</span></button>
-          <button className={view==="feed"?"active":""} onClick={()=>setView("feed")}><Radio/><span>{t("Feed")}</span></button>
-          <button className={view==="library"?"active":""} onClick={()=>setView("library")}><Library/><span>{t("Library")}</span></button>
-        </nav>
+        {mobileTabbarMounted && createPortal(
+          <nav className="mobile-tabbar" aria-label="Main sections">
+            <button className={view==="discover"?"active":""} onClick={()=>setView("discover")}><Home/><span>{t("Discover")}</span></button>
+            <button className={view==="charts"?"active":""} onClick={()=>setView("charts")}><TrendingUp/><span>{t("Charts")}</span></button>
+            <button className={view==="search"?"active":""} onClick={()=>setView("search")}><Search/><span>{t("Search")}</span></button>
+            <button className={view==="feed"?"active":""} onClick={()=>setView("feed")}><Radio/><span>{t("Feed")}</span></button>
+            <button className={view==="library"?"active":""} onClick={()=>setView("library")}><Library/><span>{t("Library")}</span></button>
+          </nav>,
+          document.body
+        )}
       </section>
 
       {current && (
