@@ -1086,7 +1086,7 @@ export default function HomePage() {
     setAudioMode(mode);
     const rate=mode==="sped"?1.25:mode==="slowed"?.8:mode==="nightcore"?1.35:mode==="daycore"?.85:1;
     void setTempo(rate).catch(error=>notify(error instanceof Error?error.message:"Tempo processing is unavailable.","error"));
-    notify(mode === "normal" ? "Back to the original sound and speed." : `${mode === "sped" ? "Speed boosted" : mode === "slowed" ? "Smooth slow-down" : mode === "nightcore" ? "Nightcore energy" : "Daycore mood"} is now active · `${rate.toFixed(2)}×`, "success", mode === "normal" ? "Original playback" : "Playback effect on");
+    notify(mode === "normal" ? "Back to the original sound and speed." : `${mode === "sped" ? "Speed boosted" : mode === "slowed" ? "Smooth slow-down" : mode === "nightcore" ? "Nightcore energy" : "Daycore mood"} is now active · ${rate.toFixed(2)}×`, "success", mode === "normal" ? "Original playback" : "Playback effect on");
   };
 
   const moveQueuedTrack = (from:number,to:number) => {
