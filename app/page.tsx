@@ -539,8 +539,10 @@ export default function HomePage() {
       }
     };
     void loadStudioCatalogue();
+    const refreshCatalogueNow = () => { void loadStudioCatalogue(); };
+    window.addEventListener("afrovibez:refresh-catalogue", refreshCatalogueNow);
     const refreshPublishedReleases = window.setInterval(() => { void loadStudioCatalogue(); }, 60 * 60 * 1000);
-    return () => window.clearInterval(refreshPublishedReleases);
+    return () => { window.clearInterval(refreshPublishedReleases); window.removeEventListener("afrovibez:refresh-catalogue", refreshCatalogueNow); };
   }, []);
 
   useEffect(() => {
@@ -1217,7 +1219,7 @@ export default function HomePage() {
   return (
     <main className="app-shell"
       onTouchStart={e=>{pullStartY.current=window.scrollY<=2?e.touches[0].clientY:null;pullTriggered.current=false;}}
-      onTouchMove={e=>{if(pullStartY.current===null||pullRefreshing)return;const distance=e.touches[0].clientY-pullStartY.current;if(distance>95&&!pullTriggered.current){pullTriggered.current=true;setPullRefreshing(true);window.setTimeout(()=>window.location.reload(),650);}}}
+      onTouchMove={e=>{if(pullStartY.current===null||pullRefreshing)return;const distance=e.touches[0].clientY-pullStartY.current;if(distance>95&&!pullTriggered.current){pullTriggered.current=true;setPullRefreshing(true);void Promise.allSettled([loadTracks(query),loadSections(),loadCharts(),Promise.resolve().then(()=>window.dispatchEvent(new Event("afrovibez:refresh-catalogue")))]).finally(()=>window.setTimeout(()=>setPullRefreshing(false),450));}}}
       onTouchEnd={()=>{pullStartY.current=null;}}
     >
       {pullRefreshing&&<div className="af-pull-refresh" role="status" aria-live="polite"><span className="af-pull-ring"><LoaderCircle size={30}/></span><strong>Refreshing your AfroVibez</strong><small>Bringing your latest sounds…</small></div>}
