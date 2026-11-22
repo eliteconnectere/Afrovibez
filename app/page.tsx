@@ -148,6 +148,9 @@ export default function HomePage() {
   const [followedArtistIds, setFollowedArtistIds] = useState<string[]>([]);
   const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
   const [toast, setToast] = useState<{title:string;message:string;tone:"success"|"error"|"warning"|"info"} | null>(null);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const pullStartY = useRef<number | null>(null);
+  const pullTriggered = useRef(false);
   const [appDialog, setAppDialog] = useState<{title:string;message:string;confirmLabel:string;tone:"danger"|"primary";input?:boolean;onConfirm:(value?:string)=>void} | null>(null);
   const [dialogInput, setDialogInput] = useState("");
   const [storageReady, setStorageReady] = useState(false);
@@ -836,12 +839,14 @@ export default function HomePage() {
     openAppDialog({title:"Create a playlist",message:"Give your playlist a name. You can add more songs whenever you like.",confirmLabel:"Save playlist",input:true,onConfirm:(value)=>{const name=(value||"").trim();if(!name){notify("Enter a name for your playlist first.","warning","Playlist name needed");return;}setPlaylists(items=>{const found=items.find(p=>p.name.toLowerCase()===name.toLowerCase());return found?items.map(p=>p.id===found.id?{...p,tracks:[...p.tracks.filter(t=>t.trackId!==track.trackId),track]}:p):[...items,{id:String(Date.now()),name,tracks:[track]}];});setMenuTrack(null);notify("Your playlist is ready in Library.","success","Playlist saved");}});
   };
   const toggleLike = (id: number) => {
+    const wasLiked = liked.has(id);
     setLiked((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+    notify(wasLiked ? "Removed from your Favorites." : "Saved to your Favorites ♥", "success", wasLiked ? "Favorite removed" : "Marked as favorite");
   };
 
   const shareTrack = async (track: Track) => {
@@ -1081,7 +1086,7 @@ export default function HomePage() {
     setAudioMode(mode);
     const rate=mode==="sped"?1.25:mode==="slowed"?.8:mode==="nightcore"?1.35:mode==="daycore"?.85:1;
     void setTempo(rate).catch(error=>notify(error instanceof Error?error.message:"Tempo processing is unavailable.","error"));
-    notify(mode === "normal" ? "Original speed" : `${mode === "sped" ? "Sped Up" : mode === "slowed" ? "Slowed" : mode === "nightcore" ? "Nightcore" : "Daycore"} mode enabled`);
+    notify(mode === "normal" ? "Back to the original sound and speed." : `${mode === "sped" ? "Speed boosted" : mode === "slowed" ? "Smooth slow-down" : mode === "nightcore" ? "Nightcore energy" : "Daycore mood"} is now active · `${rate.toFixed(2)}×`, "success", mode === "normal" ? "Original playback" : "Playback effect on");
   };
 
   const moveQueuedTrack = (from:number,to:number) => {
@@ -1195,7 +1200,12 @@ export default function HomePage() {
   );
 
   return (
-    <main className="app-shell">
+    <main className="app-shell"
+      onTouchStart={e=>{pullStartY.current=window.scrollY<=2?e.touches[0].clientY:null;pullTriggered.current=false;}}
+      onTouchMove={e=>{if(pullStartY.current===null||pullRefreshing)return;const distance=e.touches[0].clientY-pullStartY.current;if(distance>95&&!pullTriggered.current){pullTriggered.current=true;setPullRefreshing(true);window.setTimeout(()=>window.location.reload(),650);}}}
+      onTouchEnd={()=>{pullStartY.current=null;}}
+    >
+      {pullRefreshing&&<div className="af-pull-refresh" role="status" aria-live="polite"><span className="af-pull-ring"><LoaderCircle size={30}/></span><strong>Refreshing your AfroVibez</strong><small>Bringing your latest sounds…</small></div>}
       <aside className={"sidebar " + (mobileNav ? "sidebar-open" : "")}>
         <div className="brand">
           <span className="brand-mark"><Disc3 size={24} /></span>
@@ -1571,7 +1581,7 @@ export default function HomePage() {
                 {["Sped Up","Nightcore","Slowed & Reverb","Slowed","Daycore","Muffled"].map((name,i)=><button key={name} className={"af-preset af-preset-"+i} onClick={()=>chooseAudioPreset(name)}>{name}</button>)}
               </div>
             </div>
-            <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{void setTempo(Number(e.target.value)).catch(error=>notify(error instanceof Error?error.message:"Tempo processing is unavailable.","error"));}}/><b>{Math.round(playSpeed*100)}%</b></div></div>
+            <div className="af-audiomod-control"><strong>Play Speed</strong><div className="af-range-row"><input type="range" min=".5" max="2" step=".01" value={playSpeed} onChange={e=>{void setTempo(Number(e.target.value)).catch(error=>notify(error instanceof Error?error.message:"Tempo processing is unavailable.","error"));}}/><b>{playSpeed.toFixed(2)}×</b></div><div className="af-speed-feedback" aria-live="polite">{playSpeed>1.005?`⚡ Speed up · ${playSpeed.toFixed(2)}×`:playSpeed<.995?`♪ Slowed down · ${playSpeed.toFixed(2)}×`:"Original speed · 1.00×"}</div></div>
             <div className="af-audiomod-toggle"><strong>Bass Boost</strong><input aria-label="Bass Boost" type="checkbox" checked={bassLevel>0} onChange={e=>void setBass(e.target.checked?65:0)}/></div>
             <div className="af-audiomod-control"><strong>Bass level</strong><div className="af-range-row"><input type="range" min="0" max="100" value={bassLevel} onChange={e=>void setBass(Number(e.target.value))}/><b>{bassLevel}%</b></div></div>
             {([{name:"Distort",value:distortionEnabled,set:setDistortionEnabled},{name:"Reverb",value:reverbEnabled,set:setReverbEnabled},{name:"Delay",value:delayEnabled,set:setDelayEnabled}] as const).map(effect=><div className="af-audiomod-toggle" key={effect.name}><strong>{effect.name}</strong><input type="checkbox" aria-label={effect.name} checked={effect.value} onChange={e=>{const enabled=e.target.checked;effect.set(enabled);void updateAudioEffects(effect.name==="Distort"?{distortion:enabled}:effect.name==="Reverb"?{reverb:enabled}:{delay:enabled}).catch(error=>notify(error instanceof Error?error.message:"Effect unavailable.","warning"));}}/></div>)}
