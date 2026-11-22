@@ -1471,7 +1471,7 @@ export default function HomePage() {
             </span>
           </button>
           <div className="player-controls">
-            <button onClick={() => playTrack(current)} aria-label={playing ? "Pause" : "Play"}>
+            <button onClick={() => { const audio=audioRef.current; if(!audio)return; if(audio.paused) void playTrack(current); else audio.pause(); }} aria-label={playing ? "Pause" : "Play"}>
               {playing ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
             </button>
           </div>
