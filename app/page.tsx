@@ -642,26 +642,24 @@ export default function HomePage() {
     if (!audio) return;
     const requestId = ++playRequestRef.current;
 
-    // A single HTMLAudioElement is the only playback engine. Selecting any
-    // track invalidates pending source/recovery work and stops the prior track
-    // immediately, before asynchronous IndexedDB/effect setup.
+    // One shared HTMLAudioElement owns all playback. Re-tapping the active
+    // track must preserve its position: leave it playing, or resume it if paused.
+    if (currentTrackIdRef.current === track.trackId && audio.src) {
+      if (!audio.paused) return;
+      try {
+        await audio.play();
+        if (requestId === playRequestRef.current) setPlaying(true);
+      } catch {
+        if (requestId === playRequestRef.current) setError("This song could not be resumed. Please try again.");
+      }
+      return;
+    }
+
+    // A genuinely different track replaces the current source immediately.
     audio.pause();
     if (tempoRampRef.current !== null) {
       cancelAnimationFrame(tempoRampRef.current);
       tempoRampRef.current = null;
-    }
-
-    // Tapping the currently selected song again restarts that same song;
-    // it must never create a second playback instance.
-    if (currentTrackIdRef.current === track.trackId && audio.src) {
-      try {
-        audio.currentTime = 0;
-        await audio.play();
-        if (requestId === playRequestRef.current) setPlaying(true);
-      } catch {
-        if (requestId === playRequestRef.current) setError("This song could not be replayed. Please try again.");
-      }
-      return;
     }
 
     if (activeObjectUrlRef.current) {
