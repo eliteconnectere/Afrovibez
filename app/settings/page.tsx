@@ -212,7 +212,6 @@ export default function SettingsPage() {
             <ToggleRow title="New music and releases" description="Alerts when artists you follow release new music." checked={prefs.newReleases} onChange={v => update("newReleases",v)} label="New music and releases"/>
             <ToggleRow title="Playlist activity" description="Updates about playlists you follow or changes to shared playlists." checked={prefs.playlistUpdates} onChange={v => update("playlistUpdates",v)} label="Playlist activity"/>
             <ToggleRow title="AfroVibez news and features" description="Product announcements, new features and occasional service news." checked={prefs.productNews} onChange={v => update("productNews",v)} label="AfroVibez news and features"/>
-            <div className="settings-footnote">Status: preference storage works on this device. Push delivery, email delivery, artist-follow triggers and notification history are not connected yet.</div>
           </>}
           {section === "playback" && <>
             <div className="settings-detail-heading"><span className="settings-icon"><Headphones size={19}/></span><div><h2>Playback & audio</h2><p>Control full-length releases published through AfroVibe Studio.</p></div></div>
@@ -244,7 +243,6 @@ export default function SettingsPage() {
             <div className="privacy-item"><strong>Account details</strong><span>No email address, password or registered account details are collected by this version.</span></div>
             <div className="privacy-item"><strong>Listening history</strong><span>A server-side listening history or cross-device listening profile is not currently implemented.</span></div>
             <div className="privacy-item"><strong>Music catalogue and playback</strong><span>AfroVibez requests approved release and public artist metadata from the AfroVibe Music backend. Signed media links are used to retrieve release artwork and audio. Search filters the catalogue loaded in this app.</span></div>
-            <div className="privacy-item"><strong>Public activity and social feeds</strong><span>Public profiles, comments, messaging, followers and social listening feeds are not connected.</span></div>
             <div className="settings-footnote">Clearing site data in your browser also removes local AfroVibez preferences and library items.</div>
           </>}
           {section === "storage" && <>
@@ -260,10 +258,6 @@ export default function SettingsPage() {
             <div className="settings-detail-heading"><span className="settings-icon"><CircleHelp size={19}/></span><div><h2>Help & information</h2><p>What works in this version and what is still being connected.</p></div></div>
             <div className="help-line"><Headphones size={18}/><div><strong>Full-track listening</strong><span>AfroVibez streams approved full-length releases published through AfroVibe Studio.</span></div></div>
             <div className="help-line"><Music2 size={18}/><div><strong>Offline downloads</strong><span>Where the artist permits downloads, audio can be saved in this browser and played offline from Your Library on this device.</span></div></div>
-            <div className="help-line"><Globe2 size={18}/><div><strong>Account sync</strong><span>Playlists, follows, likes and preferences do not sync between devices yet.</span></div></div>
-            <div className="help-line"><Bell size={18}/><div><strong>Notifications</strong><span>Notification preferences save locally, but push and email delivery are not connected yet.</span></div></div>
-            <div className="help-line"><Mail size={18}/><div><strong>Support</strong><span>A verified AfroVibez support email has not yet been supplied. Support contact will be published before public registration opens.</span></div></div>
-            <div className="settings-status-panel"><strong>About AfroVibez</strong><p>Discover. Listen. Feel. AfroVibez is the listener app for approved artist releases published through AfroVibe Studio.</p></div>
           </>}
         </section>
       </>}
