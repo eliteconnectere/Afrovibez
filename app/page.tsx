@@ -644,8 +644,14 @@ export default function HomePage() {
 
     // One shared HTMLAudioElement owns all playback. Re-tapping the active
     // track must preserve its position: leave it playing, or resume it if paused.
-    if (currentTrackIdRef.current === track.trackId && audio.src) {
-      if (!audio.paused) return;
+    if (currentTrackIdRef.current === track.trackId && (audio.currentSrc || audio.src)) {
+      // Selecting the song already playing is navigation, not a second play:
+      // open Now Playing and preserve the exact current playback position.
+      setPlayerOpen(true);
+      if (!audio.paused) {
+        setPlaying(true);
+        return;
+      }
       try {
         await audio.play();
         if (requestId === playRequestRef.current) setPlaying(true);
@@ -655,8 +661,16 @@ export default function HomePage() {
       return;
     }
 
-    // A genuinely different track replaces the current source immediately.
+    // A different selection must stop and detach the old source before any
+    // asynchronous download lookup. The same audio element is reused for every
+    // track, so two songs can never run as separate players.
     audio.pause();
+    audio.currentTime = 0;
+    audio.removeAttribute("src");
+    audio.load();
+    setPlaying(false);
+    currentTrackIdRef.current = null;
+    currentTrackUuidRef.current = null;
     if (tempoRampRef.current !== null) {
       cancelAnimationFrame(tempoRampRef.current);
       tempoRampRef.current = null;
