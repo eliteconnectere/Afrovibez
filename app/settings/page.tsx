@@ -37,7 +37,9 @@ const defaults: Preferences = {
 const profileDefaults: Profile = { displayName: "", username: "", bio: "" };
 const prefKey = "afrovibez.preferences.v1";
 const profileKey = "afrovibez.profile.v1";
-const localKeys = ["afrovibez.preferences.v1", "afrovibez.profile.v1", "afrovibez.likes.v1", "afrovibez.queue.v1", "afrovibez.playlists.v1", "afrovibez.follows.v1", "afrovibez.keepAudioMode"];
+// User-owned browser data. Auth tokens are deliberately excluded from export,
+ // but Clear Data must remove the anonymous session and all saved search/location state.
+const localKeys = ["afrovibez.preferences.v1", "afrovibez.profile.v1", "afrovibez.likes.v1", "afrovibez.queue.v1", "afrovibez.playlists.v1", "afrovibez.follows.v1", "afrovibez.searches.v1", "afrovibez.explore-country.v1", "afrovibez.keepAudioMode", "afrovibez.listener-auth.v1"];
 const offlineDbName = "afrovibez-offline-v1";
 
 const sections: { id: Section; title: string; description: string; icon: typeof UserRound; status?: string }[] = [
@@ -130,20 +132,41 @@ export default function SettingsPage() {
     setNotice("App preferences have been reset. Your local profile, library and offline downloads were kept.");
   };
   const clearAllData = async () => {
-    localKeys.forEach(key => localStorage.removeItem(key));
     try {
+      // Remove all app-owned local data, including the local anonymous session.
+      // Never clear unrelated websites' localStorage entries.
+      localKeys.forEach(key => localStorage.removeItem(key));
       if (typeof indexedDB !== "undefined") {
-        const request = indexedDB.open(offlineDbName, 1);
-        request.onupgradeneeded = () => { if (!request.result.objectStoreNames.contains("tracks")) request.result.createObjectStore("tracks", { keyPath: "trackId" }); };
+        // The listener currently creates DB version 2 (tracks + assets).
+        // Opening version 1 causes VersionError and made Clear Data fail.
+        const request = indexedDB.open(offlineDbName, 2);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains("tracks")) db.createObjectStore("tracks", { keyPath: "trackId" });
+          if (!db.objectStoreNames.contains("assets")) db.createObjectStore("assets", { keyPath: "key" });
+        };
         await new Promise<void>((resolve, reject) => {
-          request.onsuccess = () => { const db = request.result; if (!db.objectStoreNames.contains("tracks")) { db.close(); resolve(); return; } const tx = db.transaction("tracks", "readwrite"); tx.objectStore("tracks").clear(); tx.oncomplete = () => { db.close(); resolve(); }; tx.onerror = () => { db.close(); reject(tx.error); }; };
+          request.onsuccess = () => {
+            const db = request.result;
+            const stores = Array.from(db.objectStoreNames);
+            if (!stores.length) { db.close(); resolve(); return; }
+            const tx = db.transaction(stores, "readwrite");
+            stores.forEach(name => tx.objectStore(name).clear());
+            tx.oncomplete = () => { db.close(); resolve(); };
+            tx.onerror = () => { db.close(); reject(tx.error); };
+            tx.onabort = () => { db.close(); reject(tx.error || new Error("Offline data clear was aborted.")); };
+          };
           request.onerror = () => reject(request.error);
+          request.onblocked = () => reject(new Error("Close other AfroVibez tabs and try clearing data again."));
         });
       }
       setOfflineStorage({ count: 0, bytes: 0 });
       setPrefs(defaults); setProfile(profileDefaults); setConfirmReset(false);
-      setNotice("Local settings, library data and downloaded audio have been cleared from this browser. Reload AfroVibez.");
-    } catch { setNotice("Some offline audio could not be cleared. Please try again."); }
+      setNotice("AfroVibez local settings, searches, session and offline music/artwork have been cleared. Reload the app.");
+    } catch (error) {
+      console.error("AfroVibez local data clear failed:", error);
+      setNotice("Some local data could not be cleared. Close other AfroVibez tabs and try again.");
+    }
   };
   const current = sections.find(item => item.id === section);
   const heading = t(current?.title || "Settings");
