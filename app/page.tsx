@@ -1439,6 +1439,7 @@ export default function HomePage() {
                   <TrendingUp size={28} />
                   <strong>No chart data yet</strong>
                   <span>Charts appear as soon as approved releases receive verified 30-second listens. No artificial rankings.</span>
+                  <button className="settings-action-button" type="button" onClick={() => { chartsLoadAttemptedRef.current = true; void loadCharts(); }}>Refresh charts</button>
                 </div>
               )}
             </section>
