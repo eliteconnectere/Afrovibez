@@ -74,6 +74,7 @@ export default function HomePage() {
   const t = (value: string) => translateText(value, language);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [studioTracks, setStudioTracks] = useState<Track[]>([]);
+  const [studioCatalogueLoaded, setStudioCatalogueLoaded] = useState(false);
   const [sectionTracks, setSectionTracks] = useState<Record<string, Track[]>>({});
   const [charts, setCharts] = useState<Track[]>([]);
   const [query, setQuery] = useState("");
@@ -166,7 +167,7 @@ export default function HomePage() {
   const lastAudioTimeRef = useRef(0);
   const recordedStreamsRef = useRef<Set<string>>(new Set());
   const streamsPendingRef = useRef<Set<string>>(new Set());
-  const chartsLoadAttemptedRef = useRef(false);
+  const chartsLoadedForCatalogueRef = useRef<Track[] | null>(null);
   const activeObjectUrlRef = useRef<string | null>(null);
   offlineDownloadsRef.current = offlineDownloads;
 
@@ -540,6 +541,10 @@ export default function HomePage() {
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
         console.error("AfroVibe Studio catalogue:", e);
+      } finally {
+        // Chart results are mapped to this catalogue; wait until its first
+        // load settles so a fast chart response cannot map against [].
+        setStudioCatalogueLoaded(true);
       }
     };
     void loadStudioCatalogue();
@@ -555,13 +560,15 @@ export default function HomePage() {
   }, [loadSections]);
 
   useEffect(() => {
-    // Empty charts are a valid result, and failures must not create a request
-    // loop on every render. The user can revisit/retry through the charts UI.
-    if (view === "charts" && !chartsLoadAttemptedRef.current) {
-      chartsLoadAttemptedRef.current = true;
+    // Charts are joined to the approved catalogue. Wait for its first load,
+    // and refresh rankings when the catalogue is replaced, without looping on
+    // a legitimate empty result or a failed request.
+    if (view === "charts" && studioCatalogueLoaded &&
+        chartsLoadedForCatalogueRef.current !== studioTracks) {
+      chartsLoadedForCatalogueRef.current = studioTracks;
       void loadCharts();
     }
-  }, [view, loadCharts]);
+  }, [view, studioCatalogueLoaded, studioTracks, loadCharts]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -1440,7 +1447,7 @@ export default function HomePage() {
                   <TrendingUp size={28} />
                   <strong>No chart data yet</strong>
                   <span>Charts appear as soon as approved releases receive verified 30-second listens. No artificial rankings.</span>
-                  <button className="settings-action-button" type="button" onClick={() => { chartsLoadAttemptedRef.current = true; void loadCharts(); }}>Refresh charts</button>
+                  <button className="settings-action-button" type="button" onClick={() => { chartsLoadedForCatalogueRef.current = studioTracks; void loadCharts(); }}>Refresh charts</button>
                 </div>
               )}
             </section>
