@@ -624,7 +624,24 @@ export default function HomePage() {
       try{
         const localBlob=await getOfflineBlob(recoveringTrackId!);
         if(recoveryRequestId!==playRequestRef.current||recoveringTrackId!==currentTrackIdRef.current)return;
-        const retrySrc=localBlob?(activeObjectUrlRef.current=URL.createObjectURL(localBlob)):originalSrc;
+        let refreshedSrc="";
+        if(!localBlob&&navigator.onLine){
+          const sourceTrack=catalogueRef.current.find(track=>track.trackId===recoveringTrackId&&track.source==="studio"&&track.storagePath);
+          const base=process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const key=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+          if(sourceTrack?.storagePath&&base&&key){
+            try{
+              const encoded=sourceTrack.storagePath.split("/").map(encodeURIComponent).join("/");
+              const signed=await fetch(`${base}/storage/v1/object/sign/studio-audio/${encoded}`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({expiresIn:3600}),cache:"no-store"});
+              if(signed.ok){
+                const data=await signed.json();
+                refreshedSrc=data.signedURL?.startsWith("http")?data.signedURL:`${base}/storage/v1${data.signedURL||""}`;
+              }
+            }catch(error){console.warn("AfroVibez playback URL renewal failed:",error);}
+          }
+        }
+        if(recoveryRequestId!==playRequestRef.current||recoveringTrackId!==currentTrackIdRef.current)return;
+        const retrySrc=localBlob?(activeObjectUrlRef.current=URL.createObjectURL(localBlob)):(refreshedSrc||originalSrc);
         if(!retrySrc||(!localBlob&&!navigator.onLine)){setPlaying(false);notify("Connection interrupted. If this song is downloaded, it can play offline.","warning","Playback paused");return;}
         audio.pause();audio.src=retrySrc;audio.load();
         if(localBlob)activePlaybackOfflineRef.current=true;
