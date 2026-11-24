@@ -125,8 +125,17 @@ export default function SettingsPage() {
     });
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), app: "AfroVibez", data }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "afrovibez-my-data.json"; a.click();
-    URL.revokeObjectURL(url); setNotice("Your device data export has been created.");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "afrovibez-my-data.json";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Safari/iOS may start consuming the download asynchronously; revoking
+    // immediately after click can invalidate the blob before it is opened.
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setNotice("Your device data export has been created.");
   };
   const resetPreferences = () => {
     setPrefs(defaults); setConfirmReset(false);
