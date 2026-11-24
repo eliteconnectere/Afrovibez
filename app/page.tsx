@@ -545,7 +545,8 @@ export default function HomePage() {
     void loadStudioCatalogue();
     const refreshCatalogueNow = () => { void loadStudioCatalogue(); };
     window.addEventListener("afrovibez:refresh-catalogue", refreshCatalogueNow);
-    const refreshPublishedReleases = window.setInterval(() => { void loadStudioCatalogue(); }, 60 * 60 * 1000);
+    // Refresh signed media URLs before their one-hour expiry; avoid an exact expiry/refresh race.
+    const refreshPublishedReleases = window.setInterval(() => { void loadStudioCatalogue(); }, 45 * 60 * 1000);
     return () => { window.clearInterval(refreshPublishedReleases); window.removeEventListener("afrovibez:refresh-catalogue", refreshCatalogueNow); };
   }, []);
 
