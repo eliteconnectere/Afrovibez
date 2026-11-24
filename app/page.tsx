@@ -1406,7 +1406,7 @@ export default function HomePage() {
               <div className="charts-header">
                 <div className="eyebrow dark">AFRICA</div>
                 <h1>Top Charts</h1>
-                <p>Ranked using verified plays of at least 30 seconds. No paid plan or artificial chart positions.</p>
+                <p>Ranked from recorded listens of at least 30 seconds. Counts are device-level estimates, not fraud-proof verification.</p>
               </div>
               {chartsLoading ? (
                 <div className="loading"><LoaderCircle className="spin" /> Loading charts…</div>
@@ -1446,7 +1446,7 @@ export default function HomePage() {
                 <div className="empty-state">
                   <TrendingUp size={28} />
                   <strong>No chart data yet</strong>
-                  <span>Charts appear as soon as approved releases receive verified 30-second listens. No artificial rankings.</span>
+                  <span>Charts appear when approved releases receive recorded 30-second listens. Device-level counts can be imperfect; rankings are not paid or manually placed.</span>
                   <button className="settings-action-button" type="button" onClick={() => { chartsLoadedForCatalogueRef.current = studioTracks; void loadCharts(); }}>Refresh charts</button>
                 </div>
               )}
