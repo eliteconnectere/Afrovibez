@@ -1,10 +1,15 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+// Keep pinch-to-zoom available for mobile accessibility.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1
+};
 
 export const metadata: Metadata = {
   title: "AfroVibez — Feel the rhythm",
   description: "Discover and stream full-length music releases approved through AfroVibe Studio.",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "AfroVibez" }
 };
