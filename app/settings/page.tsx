@@ -37,9 +37,10 @@ const defaults: Preferences = {
 const profileDefaults: Profile = { displayName: "", username: "", bio: "" };
 const prefKey = "afrovibez.preferences.v1";
 const profileKey = "afrovibez.profile.v1";
-// User-owned browser data. Auth tokens are deliberately excluded from export,
- // but Clear Data must remove the anonymous session and all saved search/location state.
-const localKeys = ["afrovibez.preferences.v1", "afrovibez.profile.v1", "afrovibez.likes.v1", "afrovibez.queue.v1", "afrovibez.playlists.v1", "afrovibez.follows.v1", "afrovibez.searches.v1", "afrovibez.explore-country.v1", "afrovibez.keepAudioMode", "afrovibez.listener-auth.v1"];
+// Export only user data; never export auth credentials or the pseudonymous stream key.
+const exportableLocalKeys = ["afrovibez.preferences.v1", "afrovibez.profile.v1", "afrovibez.likes.v1", "afrovibez.queue.v1", "afrovibez.playlists.v1", "afrovibez.follows.v1", "afrovibez.searches.v1", "afrovibez.explore-country.v1", "afrovibez.keepAudioMode"];
+// Clear Data removes every app-owned browser key, including local session identifiers.
+const clearableLocalKeys = [...exportableLocalKeys, "afrovibez.listener-auth.v1", "afrovibez.listener-key.v1"];
 const offlineDbName = "afrovibez-offline-v1";
 
 const sections: { id: Section; title: string; description: string; icon: typeof UserRound; status?: string }[] = [
@@ -119,7 +120,7 @@ export default function SettingsPage() {
   };
   const exportData = () => {
     const data: Record<string, unknown> = {};
-    localKeys.forEach(key => {
+    exportableLocalKeys.forEach(key => {
       try { const value = localStorage.getItem(key); if (value !== null) data[key] = JSON.parse(value); } catch { data[key] = localStorage.getItem(key); }
     });
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), app: "AfroVibez", data }, null, 2)], { type: "application/json" });
@@ -135,7 +136,7 @@ export default function SettingsPage() {
     try {
       // Remove all app-owned local data, including the local anonymous session.
       // Never clear unrelated websites' localStorage entries.
-      localKeys.forEach(key => localStorage.removeItem(key));
+      clearableLocalKeys.forEach(key => localStorage.removeItem(key));
       if (typeof indexedDB !== "undefined") {
         // The listener currently creates DB version 2 (tracks + assets).
         // Opening version 1 causes VersionError and made Clear Data fail.
