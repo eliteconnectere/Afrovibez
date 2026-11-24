@@ -165,6 +165,8 @@ export default function HomePage() {
   const listenedSecondsRef = useRef(0);
   const lastAudioTimeRef = useRef(0);
   const recordedStreamsRef = useRef<Set<string>>(new Set());
+  const streamsPendingRef = useRef<Set<string>>(new Set());
+  const chartsLoadAttemptedRef = useRef(false);
   const activeObjectUrlRef = useRef<string | null>(null);
   offlineDownloadsRef.current = offlineDownloads;
 
@@ -188,12 +190,14 @@ export default function HomePage() {
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!base || !key) return;
     try {
-      await fetch(`${base}/rest/v1/rpc/record_track_stream`, {
+      const response = await fetch(`${base}/rest/v1/rpc/record_track_stream`, {
         method: "POST",
         headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ p_track_id: trackUuid, p_listener_key: getListenerKey(), p_listened_seconds: Math.max(30, Math.floor(seconds)) })
       });
-    } catch (e) { console.warn("AfroVibez stream metric was not recorded:", e); }
+      if (!response.ok) throw new Error(`Stream RPC failed (${response.status}): ${await response.text()}`);
+      return true;
+    } catch (e) { console.warn("AfroVibez stream metric was not recorded:", e); return false; }
   };
 
   const loadArtistSocial = async (artists:any[]) => {
@@ -550,8 +554,13 @@ export default function HomePage() {
   }, [loadSections]);
 
   useEffect(() => {
-    if (view === "charts" && charts.length === 0) loadCharts();
-  }, [view, charts.length, loadCharts]);
+    // Empty charts are a valid result, and failures must not create a request
+    // loop on every render. The user can revisit/retry through the charts UI.
+    if (view === "charts" && !chartsLoadAttemptedRef.current) {
+      chartsLoadAttemptedRef.current = true;
+      void loadCharts();
+    }
+  }, [view, loadCharts]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -625,9 +634,12 @@ export default function HomePage() {
       if (!audio.paused && delta > 0 && delta <= 3) listenedSecondsRef.current += delta;
       lastAudioTimeRef.current = now;
       const uuid = currentTrackUuidRef.current;
-      if (uuid && listenedSecondsRef.current >= 30 && !recordedStreamsRef.current.has(uuid)) {
-        recordedStreamsRef.current.add(uuid);
-        void recordVerifiedStream(uuid, listenedSecondsRef.current);
+      if (uuid && listenedSecondsRef.current >= 30 &&
+          !recordedStreamsRef.current.has(uuid) && !streamsPendingRef.current.has(uuid)) {
+        streamsPendingRef.current.add(uuid);
+        void recordVerifiedStream(uuid, listenedSecondsRef.current).then(success => {
+          if (success) recordedStreamsRef.current.add(uuid);
+        }).finally(() => streamsPendingRef.current.delete(uuid));
       }
       setCurrentTime(now);
     });
