@@ -17,4 +17,4 @@ The isolated project has the Studio artist/release tables, listener follows/comm
 
 Enable **Anonymous Sign-Ins** in Supabase Auth for the listener app's first-run anonymous listener session. Artists create accounts in Studio with email/password. Provision the first Studio administrator by setting `studio_profiles.role='admin'` for that user's Auth UUID through the trusted Supabase SQL editor after the account is created.
 
-Studio release validation supports Single releases only until multi-track release support is implemented.
+Studio supports grouped Single, EP, Album, Mixtape and Compilation releases. Each song remains a track record for listener playback, while the parent release groups its tracklist for artist and Management workflows.
