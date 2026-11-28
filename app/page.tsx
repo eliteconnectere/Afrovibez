@@ -23,6 +23,9 @@ type Track = {
   source?: "studio";
   artistId?: string;
   studioTrackId?: string;
+  releaseId?: string;
+  releaseType?: string;
+  trackNumber?: number;
   allowDownloads?: boolean;
   storagePath?: string;
   primaryGenreName?: string;
@@ -508,9 +511,13 @@ export default function HomePage() {
       try {
         const now = new Date();
         const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,release_date,allow_downloads&status=eq.approved&release_date=lte.${localToday}&order=approved_at.desc.nullslast`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+        const response = await fetch(`${base}/rest/v1/studio_tracks?select=id,artist_id,title,genre,language,audio_path,artwork_path,explicit_content,release_type,release_date,allow_downloads,release_id,track_number&status=eq.approved&release_date=lte.${localToday}&order=approved_at.desc.nullslast,track_number.asc`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
         if (!response.ok) throw new Error("Published AfroVibe releases are temporarily unavailable.");
         const rows = await response.json();
+        const releaseIds = Array.from(new Set((rows || []).map((row: any) => row.release_id).filter(Boolean)));
+        const releaseResponse = releaseIds.length ? await fetch(base + "/rest/v1/studio_releases?select=id,title,release_type&id=in.(" + releaseIds.join(",") + ")", { headers: { apikey: key, Authorization: "Bearer " + key } }) : null;
+        const releaseRows = releaseResponse?.ok ? await releaseResponse.json() : [];
+        const releaseMap = new Map<string, any>((releaseRows || []).map((release: any) => [release.id, release]));
         // Download permission controls whether a NEW offline copy may be saved.
         // It must never remove a release from the streaming catalogue or silently
         // delete a listener's existing local copy during catalogue refresh.
@@ -536,7 +543,8 @@ export default function HomePage() {
           const [audio, artwork] = await Promise.all([sign("studio-audio", row.audio_path), sign("studio-artwork", row.artwork_path)]);
           if (!audio || !artwork) return null;
           const numericId = row.id.replace(/-/g, "").slice(0, 12);
-          return { trackId: parseInt(numericId, 16), artistId:row.artist_id, studioTrackId:row.id, allowDownloads:row.allow_downloads!==false, storagePath:row.audio_path, trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
+          const release = releaseMap.get(row.release_id);
+          return { trackId: parseInt(numericId, 16), artistId:row.artist_id, studioTrackId:row.id, releaseId:row.release_id, releaseType:release?.release_type||row.release_type||"Single", trackNumber:Number(row.track_number)||1, allowDownloads:row.allow_downloads!==false, storagePath:row.audio_path, trackName: row.title, artistName: artistNames.get(row.artist_id) || "AfroVibe Artist", collectionName: release?.title || row.release_type || "Single", artworkUrl100: artwork, audioUrl: audio, trackViewUrl: window.location.href, primaryGenreName: row.genre, source: "studio", trackExplicitness: row.explicit_content?.toLowerCase().includes("explicit") ? "explicit" : "clean" } as Track;
         }));
         setStudioTracks(signed.filter(Boolean) as Track[]);
       } catch (e) {
