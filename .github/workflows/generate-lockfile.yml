@@ -23,12 +23,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Generate deterministic npm lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Commit lockfile
         run: |
-          if git diff --quiet -- package-lock.json; then
+          if [ -f package-lock.json ] && git diff --quiet -- package-lock.json; then
             echo "package-lock.json is already current."
             exit 0
           fi
